@@ -6,7 +6,7 @@ Luma Home replaces the launcher on a compatible rooted LG webOS TV. It adds quic
 
 ## Install or upgrade
 
-For TV installation, open **Homebrew Channel → Settings → Add repository** and enter [the webOS catalog](https://raw.githubusercontent.com/vibribbonee/TheVibeCollection/main/repo.json). You can also download the IPKs from [GitHub Releases](https://github.com/vibribbonee/luma-home-webos/releases).
+For TV installation, open **Homebrew Channel → Settings → Add repository** and enter [the webOS catalog](https://raw.githubusercontent.com/vibribbonee/arcguard/main/repo.json). You can also download the IPKs from [GitHub Releases](https://github.com/vibribbonee/luma-home-webos/releases).
 
 1. On a compatible rooted LG TV with Homebrew Channel, use its IPK installer to install the Luma Home and overlay packages. Build them with `python3 build.py` if you are using a source checkout.
 2. Install the Home Assistant integration from `custom_components/luma_home`. Restart Home Assistant, open **Settings → Devices & services → Add integration → Luma Home**, and pair your TV.
