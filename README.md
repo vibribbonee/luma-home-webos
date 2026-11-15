@@ -1,8 +1,19 @@
+<img src="custom_components/luma_home/brand/icon.png" alt="" width="64" height="64" align="right">
+
 # Luma Home
 
-A launcher and quick panel for rooted LG webOS TVs. Pin apps and HDMI inputs, control Home Assistant devices, and display camera feeds and notifications over what you’re watching.
+Put your apps, HDMI inputs, and Home Assistant controls on one screen on a rooted LG webOS TV.
 
 [![Add to Home Assistant Marketplace](https://my.home-assistant.io/badges/marketplace_repository.svg)](https://my.home-assistant.io/redirect/marketplace_repository/?owner=vibribbonee&repository=luma-home-webos&category=integration)
+
+## Features
+
+- Pin apps and inputs, or open a compact panel while watching.
+- Toggle lights, adjust brightness, or run Home Assistant scenes from the TV.
+- Talk to Home Assistant Assist using the TV remote’s voice button.
+- Show camera feeds and notification overlays while you watch.
+
+![Luma Home launcher with an HDMI input, pinned apps, and sample Home Assistant controls](docs/launcher.jpg)
 
 ## Install
 
