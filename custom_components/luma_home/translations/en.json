@@ -33,7 +33,13 @@
           "voice_silence_seconds": "Voice silence seconds",
           "voice_reply": "Voice reply",
           "streamer_remote": "Streamer remote",
-          "streamer_adb": "Streamer adb"
+          "streamer_adb": "Streamer adb",
+          "lumax_enabled": "LumaX Home routing",
+          "lumax_input": "Streamer HDMI port"
+        },
+        "data_description": {
+          "lumax_enabled": "Open the optional LumaX app when using the TV’s full Home shortcut. Fall back to the webOS launcher when the Streamer is unavailable.",
+          "lumax_input": "The HDMI port on the LG that the Google TV Streamer is plugged into."
         }
       }
     }

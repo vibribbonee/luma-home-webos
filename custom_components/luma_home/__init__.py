@@ -12,10 +12,15 @@ async def async_setup(hass:HomeAssistant,config):
     from .websocket import async_register
     async_register(hass)
     await hass.http.async_register_static_paths([StaticPathConfig('/luma_home/luma-home-card.js',hass.config.path('custom_components',DOMAIN,'frontend','luma-home-card.js'),False)])
-    common={vol.Optional('device_id'):cv.string,vol.Optional('entry_id'):cv.string}
+    common={vol.Optional('device_id'):cv.string,vol.Optional('entry_id'):cv.string,vol.Optional('tv_id'):cv.string}
     def resolve(data):
         entries=hass.data[DOMAIN]
         if data.get('entry_id') in entries:return entries[data['entry_id']]
+        if data.get('tv_id'):
+            for tv in entries.values():
+                if tv.tv_id == data['tv_id']:
+                    return tv
+            raise HomeAssistantError('Choose a Luma Home TV device.')
         if data.get('device_id'):
             device=dr.async_get(hass).async_get(data['device_id'])
             if device:
@@ -46,7 +51,18 @@ async def async_setup_entry(hass,entry):
     dr.async_get(hass).async_get_or_create(config_entry_id=entry.entry_id,identifiers={(DOMAIN,entry.unique_id)},name=entry.title,manufacturer='Luma Home',model='webOS Home and Home Assistant overlays')
     entry.async_on_unload(tv.start())
     await hass.config_entries.async_forward_entry_setups(entry,PLATFORMS)
-    async def options_changed(hass,entry):tv.config_changed()
+    hybrid = tv.config['lumax_enabled']
+    async def options_changed(hass,entry):
+        nonlocal hybrid
+        tv.config_changed()
+        enabled = tv.config['lumax_enabled']
+        if enabled != hybrid:
+            hybrid = enabled
+            try:
+                await tv.configure_tv()
+            except HomeAssistantError:
+                # The LG reconnects with the saved options when its launcher opens.
+                pass
     entry.async_on_unload(entry.add_update_listener(options_changed))
     return True
 async def async_unload_entry(hass,entry):

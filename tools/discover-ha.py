@@ -89,6 +89,19 @@ def main():
         with open(ROOT + '/connection.json') as source:
             config = json.load(source)
         result = discover(config, '--browse' in sys.argv)
+        # Keep recent discovery separate from the TV’s pairing credentials.
+        endpoint_path = ROOT + '/ha-endpoint.json'
+        tmp = endpoint_path + '.%s.tmp' % os.getpid()
+        try:
+            with open(tmp, 'w') as target:
+                json.dump({'url': result['url'], 'uuid': result['uuid']}, target)
+            os.chmod(tmp, 384)
+            os.rename(tmp, endpoint_path)
+        except IOError:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
         if '--connection' in sys.argv:
             if not config.get('token'):
                 raise ValueError('Home Assistant is not paired.')

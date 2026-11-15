@@ -21,11 +21,11 @@ cat > /var/lib/webosbrew/init.d/95-lumahome-remote <<'BOOT'
 /var/lib/webosbrew/lumahome/ambient-watch.sh start
 BOOT
 chmod 755 /var/lib/webosbrew/init.d/95-lumahome-remote
-printf '{"installed":true,"version":"0.4.5"}\n' > "$ROOT/install.json"
+printf '{"installed":true,"version":"0.4.6"}\n' > "$ROOT/install.json"
 [ ! -f "$ROOT/voice.enabled" ] || "$ROOT/voice-mic.sh" warm >/dev/null 2>&1 || true
 /usr/bin/python "$ROOT/voice-worker.py" warm >/dev/null 2>&1 || true
 "$ROOT/home-hook.sh" restart >/dev/null 2>&1 || true
 "$ROOT/ambient-watch.sh" stop
 "$ROOT/ambient-watch.sh" start
-touch "$ROOT/.runtime-0.4.5"
-printf '{"success":true,"version":"0.4.5"}\n'
+touch "$ROOT/.runtime-0.4.6"
+printf '{"success":true,"version":"0.4.6"}\n'

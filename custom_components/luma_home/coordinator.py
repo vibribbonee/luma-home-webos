@@ -11,10 +11,12 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.event import async_track_state_change_event
 from .const import APP,OVERLAY,DOMAIN,settings,validate_patch
+from .lumax import StreamerOverlay
 _LOGGER=logging.getLogger(__name__)
 class LumaTV:
     def __init__(self,hass,entry):
         self.hass=hass;self.entry=entry;self.listeners=set();self.config_listeners=set();self.status={};self.catalog=[];self.last_seen=None;self.command_lock=asyncio.Lock();self.announcements={}
+        self.streamer_overlay = StreamerOverlay()
     @property
     def tv_id(self):return self.entry.unique_id
     @property
@@ -35,10 +37,10 @@ class LumaTV:
         for fn in tuple(self.config_listeners):fn(payload)
         self.publish()
     def snapshot(self):
-        return {'entry_id':self.entry.entry_id,'tv_id':self.tv_id,'name':self.entry.title,'settings':self.config,'catalog':deepcopy(self.catalog),'status':dict(self.status),'integration_version':'0.4.4','clock':{'utc_ms':int(datetime.now(timezone.utc).timestamp()*1000),'time_zone':self.hass.config.time_zone}}
+        return {'entry_id':self.entry.entry_id,'tv_id':self.tv_id,'name':self.entry.title,'settings':self.config,'catalog':deepcopy(self.catalog),'status':dict(self.status),'integration_version':'0.4.6','clock':{'utc_ms':int(datetime.now(timezone.utc).timestamp()*1000),'time_zone':self.hass.config.time_zone}}
     async def update(self,patch,*,push=True):
         checked=validate_patch(patch);self.hass.config_entries.async_update_entry(self.entry,options=self.config|checked);self.config_changed()
-        if push and any(k.startswith('voice_') or k in ('home_button','home_swap','microphone','no_signal','screensaver') for k in checked):
+        if push and any(k.startswith('voice_') or k in ('lumax_enabled','home_button','home_swap','microphone','no_signal','screensaver') for k in checked):
             await self.configure_tv()
         return self.snapshot()
     async def command(self,params,*,overlay=False):
@@ -47,17 +49,48 @@ class LumaTV:
         await self.hass.services.async_call('webostv','command',{'entity_id':self.entity_id,'command':'system.launcher/launch','payload':{'id':OVERLAY if overlay else APP,'params':params}},blocking=True)
     async def configure_tv(self):
         cfg=self.config
-        runtime={k:cfg[k] for k in cfg if k.startswith('voice_') or k in ('home_button','home_swap','microphone','no_signal','screensaver')}
+        runtime={k:cfg[k] for k in cfg if k.startswith('voice_') or k in ('lumax_enabled','home_button','home_swap','microphone','no_signal','screensaver')}
         await self.command({'configure':{'tv_id':self.tv_id,'settings':runtime},'background':True},overlay=True)
     async def open(self,view='home',tab='pins'):
-        if view=='quick':await self.command({'quick':True,'toggle':False},overlay=True)
-        else:await self.command({'luma':view,'tab':tab})
+        if view=='quick':
+            if not await self.show_streamer_overlay({'kind': 'quick'}):
+                await self.command({'quick':True,'toggle':False},overlay=True)
+        elif view != 'home' or not await self.open_streamer_home():
+            await self.command({'luma':view,'tab':tab})
+    async def open_streamer_home(self):
+        cfg = self.config
+        remote = cfg['streamer_remote']
+        if not cfg['lumax_enabled'] or not remote:
+            return False
+        state = self.hass.states.get(remote)
+        if state is None or state.state in ('unavailable', 'unknown'):
+            return False
+        try:
+            async with asyncio.timeout(0.9):
+                await self.hass.services.async_call('remote', 'turn_on', {
+                    'entity_id': remote, 'activity': 'lumax://home',
+                }, blocking=True)
+                await self.select_input(cfg['lumax_input'])
+            return True
+        except (HomeAssistantError, TimeoutError):
+            return False
+    async def show_streamer_overlay(self, event):
+        config = self.config
+        if not config['lumax_enabled']:
+            return False
+        state = self.hass.states.get(self.entity_id)
+        if state is None or state.state in ('off', 'unavailable', 'unknown'):
+            return False
+        return await self.streamer_overlay.show(state.attributes.get('source'), config, event)
     async def select_input(self,input_id,watch=True):await self.command({'luma':'input','input':str(input_id),'watch':watch})
     async def camera(self,camera,seconds=15,position='top-right',size=25,mode='mjpeg',title=''):
         if not camera.startswith('camera.') or not self.hass.states.get(camera):raise HomeAssistantError('Choose an existing camera entity.')
         await self.command({'camera':camera,'timeout':seconds,'position':position,'size':size,'mode':mode,'title':title},overlay=True)
     async def notify(self,message,title='',seconds=None,image=''):
-        await self.command({'notification':{'message':message,'title':title,'seconds':seconds or self.config['notification_seconds'],'image':image}},overlay=True)
+        duration = seconds or self.config['notification_seconds']
+        if not image and await self.show_streamer_overlay({'kind': 'notification', 'message': message, 'title': title, 'seconds': duration}):
+            return
+        await self.command({'notification':{'message':message,'title':title,'seconds':duration,'image':image}},overlay=True)
     async def announce(self,announcement):
         def media(url,local=False):
             if not url:return None

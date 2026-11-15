@@ -1,7 +1,8 @@
 (function(){
  'use strict';
  var helpers=window.LUMA_BOOTSTRAP.helpers,ha,root,activity=Date.now(),closed=false;
- function watchList(s){var x=s[helpers.controls];var size=s[helpers.tilesize],map=s[helpers.tiles],columns=s[helpers.columns];return Luma.fit(Luma.list(x&&x.state||'[]'),size&&size.state,Luma.parseMap(map&&map.state||'{}'),columns&&columns.state);}
+ function watchList(s){var x=s[helpers.controls];var size=s[helpers.tilesize],map=s[helpers.tiles],columns=s[helpers.columns];var ids=Luma.fit(Luma.list(x&&x.state||'[]'),size&&size.state,Luma.parseMap(map&&map.state||'{}'),columns&&columns.state);
+  ['temperature','humidity','co2'].forEach(function(key){var state=s[helpers[key]];if(state&&state.state)ids.push(state.state);});return ids;}
  function value(key,def){var s=ha&&ha.states[helpers[key]];return s?s.state:def;}
  function el(tag,cls,text){var n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n;}
  function button(label,fn,icon){var b=el('button','quick-button');if(icon)b.appendChild(LumaIcons.icon(icon));b.appendChild(el('span','quick-button-label',label));b.onclick=fn;return b;}
@@ -18,13 +19,29 @@
   container.querySelectorAll('[data-entity]').forEach(function(b){var s=ha.states[b.dataset.entity];var held=dimHold[b.dataset.entity]&&Date.now()<dimHold[b.dataset.entity].until,pct=held?dimHold[b.dataset.entity].pct:(ha.ready&&s&&s.state==='on'?level(s):0);if(b.dataset.dim){var fill=b.querySelector('.fill');fill.style.width=pct+'%';fill.style.opacity=pct>0?'1':'0';}b.querySelector('.quick-button-label').textContent=(s&&s.attributes.friendly_name||b.dataset.entity)+'  ·  '+(ha.ready&&s?(b.dataset.dim&&(s.state==='on'||(held&&pct>0))?pct+'%':s.state):'Unavailable');b.setAttribute('aria-pressed',String(ha.ready&&s&&s.state==='on'));});
   LumaLights.update(root,ha);LumaNav.restore(container,bookmark);
   root.querySelector('.quick-title').textContent=value('room','Home');
+  var climate=root.querySelector('.quick-climate'),readings=[];
+  if(value('climate','on')!=='off'){
+   [['temperature','Temp'],['humidity','Humidity'],['co2','CO₂']].forEach(function(item){
+    var sensor=ha.states[value(item[0],'')];
+    if(ha.ready&&sensor&&['unknown','unavailable'].indexOf(sensor.state)<0){
+     readings.push(item[1]+' '+sensor.state+' '+(sensor.attributes.unit_of_measurement||''));
+    }
+   });
+  }
+  var climateSignature=readings.join('|');
+  if(climate.dataset.values!==climateSignature){
+   climate.dataset.values=climateSignature;
+   climate.innerHTML='';
+   readings.forEach(function(reading){climate.appendChild(el('span','',reading));});
+   climate.hidden=!readings.length;
+  }
  }
  window.startLumaQuick=function(){
-  root=document.getElementById('quickPanel');if(!root){root=el('aside','quick-panel');root.id='quickPanel';var heading=el('div','quick-heading');heading.appendChild(el('h1','quick-title','Home'));var closeButton=button('',close,'x');closeButton.setAttribute('aria-label','Close quick controls');closeButton.dataset.navZone='quick-header';heading.appendChild(closeButton);root.appendChild(heading);root.appendChild(el('p','quick-label','QUICK CONTROLS'));var controls=el('div','quick-controls');controls.dataset.navZone='quick-controls';root.appendChild(controls);var inputs=el('div','quick-inputs');inputs.dataset.navZone='quick-inputs';inputs.appendChild(button('HDMI 1',function(){launch('com.webos.app.hdmi1');},'monitor')); inputs.appendChild(button('HDMI 2',function(){launch('com.webos.app.hdmi2');},'monitor')); inputs.appendChild(button('SmartTube',function(){streamer('smarttube');},'play')); inputs.appendChild(button('Jellyfin',function(){streamer('jellyfin');},'play')); root.appendChild(inputs);root.appendChild(button('Open full home',function(){launch('com.spinoff.lumahome');},'house'));root.appendChild(button('LG Home',function(){launch('com.webos.app.home');},'external-link'));root.appendChild(el('p','quick-status','Connecting to Home Assistant…'));document.body.appendChild(root);Array.from(root.children).forEach(function(e){if(e.tagName==='BUTTON')e.dataset.navZone='quick-action';});}
+  root=document.getElementById('quickPanel');if(!root){root=el('aside','quick-panel');root.id='quickPanel';var heading=el('div','quick-heading');heading.appendChild(el('h1','quick-title','Home'));var closeButton=button('',close,'x');closeButton.setAttribute('aria-label','Close quick controls');closeButton.dataset.navZone='quick-header';heading.appendChild(closeButton);root.appendChild(heading);var climate=el('div','quick-climate');climate.hidden=true;root.appendChild(climate);root.appendChild(el('p','quick-label','QUICK CONTROLS'));var controls=el('div','quick-controls');controls.dataset.navZone='quick-controls';root.appendChild(controls);var inputs=el('div','quick-inputs');inputs.dataset.navZone='quick-inputs';inputs.appendChild(button('HDMI 1',function(){launch('com.webos.app.hdmi1');},'monitor')); inputs.appendChild(button('HDMI 2',function(){launch('com.webos.app.hdmi2');},'monitor')); inputs.appendChild(button('SmartTube',function(){streamer('smarttube');},'play')); inputs.appendChild(button('Jellyfin',function(){streamer('jellyfin');},'play')); root.appendChild(inputs);root.appendChild(button('Open full home',function(){launch('com.spinoff.lumahome');},'house'));root.appendChild(button('LG Home',function(){launch('com.webos.app.home');},'external-link'));root.appendChild(el('p','quick-status','Connecting to Home Assistant…'));document.body.appendChild(root);Array.from(root.children).forEach(function(e){if(e.tagName==='BUTTON')e.dataset.navZone='quick-action';});}
   root.hidden=false;closed=false;activity=Date.now();
   if(!ha){ha=new Luma.HA(null,update,function(status){root.querySelector('.quick-status').textContent=status;});ha.watchFn=watchList;ha.connect();}else{update();if(!ha.ready)ha.connect();}root.querySelector('button').focus();
  };
- window.lumaOverlayStatus=function(){return {version:'0.4.5',quickOpen:!!window.lumaQuickOpen,visible:!document.hidden,haConnected:!!(ha&&ha.ready)};};window.closeLumaQuick=close;
+ window.lumaOverlayStatus=function(){return {version:'0.4.6',quickOpen:!!window.lumaQuickOpen,visible:!document.hidden,haConnected:!!(ha&&ha.ready)};};window.closeLumaQuick=close;
  window.suspendLumaQuick=suspend;
  document.addEventListener('keydown',function(e){if(!root||root.hidden||!root.contains(document.activeElement))return;activity=Date.now();if(LumaNav.handle(e,root))return;if([27,461].indexOf(e.keyCode)>=0){e.preventDefault();e.stopImmediatePropagation();close();}});
  document.addEventListener('mousemove',function(){activity=Date.now();});

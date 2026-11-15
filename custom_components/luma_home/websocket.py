@@ -108,6 +108,36 @@ async def announcement_result(hass,connection,msg):
         tv=authorized(hass,connection,msg)
         connection.send_result(msg['id'],{'accepted':tv.announcement_result(msg['run_id'],msg['state'])})
     except HomeAssistantError as err:connection.send_error(msg['id'],'unauthorized',str(err))
+
+@websocket_api.websocket_command({vol.Required('type'): 'luma_home/lumax/subscribe',
+                                  vol.Required('streamer_input'): vol.In([1, 2]), **COMMON})
+@websocket_api.async_response
+async def lumax_subscribe(hass, connection, msg):
+    try:
+        router = authorized(hass, connection, msg).streamer_overlay
+    except HomeAssistantError as err:
+        connection.send_error(msg['id'], 'unauthorized', str(err))
+        return
+
+    @callback
+    def send(event):
+        connection.send_event(msg['id'], event)
+
+    key = router.subscribe(msg['streamer_input'], send)
+    connection.subscriptions[msg['id']] = lambda: router.unsubscribe(key)
+    connection.send_result(msg['id'], {'renderer': key})
+
+@websocket_api.websocket_command({vol.Required('type'): 'luma_home/lumax/ack',
+                                  vol.Required('renderer'): str, vol.Required('nonce'): str, **COMMON})
+@websocket_api.async_response
+async def lumax_ack(hass, connection, msg):
+    try:
+        router = authorized(hass, connection, msg).streamer_overlay
+    except HomeAssistantError as err:
+        connection.send_error(msg['id'], 'unauthorized', str(err))
+        return
+    connection.send_result(msg['id'], {'accepted': router.acknowledge(msg['renderer'], msg['nonce'])})
+
 @callback
 def async_register(hass):
-    for fn in (get_config,set_config,subscribe,report,states,list_tvs,voice_config,pair,announcement_result):websocket_api.async_register_command(hass,fn)
+    for fn in (get_config,set_config,subscribe,report,states,list_tvs,voice_config,pair,announcement_result,lumax_subscribe,lumax_ack):websocket_api.async_register_command(hass,fn)

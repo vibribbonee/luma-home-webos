@@ -10,7 +10,7 @@ def write(name,value):
     os.chmod(tmp,384);os.rename(tmp,path)
 def main():
     data=json.loads(base64.b64decode(sys.argv[1]));cfg=data.get('settings',{})
-    allowed={'voice_mode':('hold','tap'),'voice_listen_seconds':(3,30),'voice_silence_seconds':(.5,5),'voice_start_seconds':(3,20),'voice_reply':bool,'voice_pipeline':str,'home_button':bool,'home_swap':bool,'microphone':bool,'no_signal':bool,'screensaver':bool}
+    allowed={'voice_mode':('hold','tap'),'voice_listen_seconds':(3,30),'voice_silence_seconds':(.5,5),'voice_start_seconds':(3,20),'voice_reply':bool,'voice_pipeline':str,'lumax_enabled':bool,'home_button':bool,'home_swap':bool,'microphone':bool,'no_signal':bool,'screensaver':bool}
     current={}
     try:current=json.load(open(ROOT+'/runtime.json'))
     except (IOError,ValueError):pass

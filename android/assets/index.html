@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src ws: wss:; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'">
+<title>LumaX</title>
+<link rel="stylesheet" href="style.css">
+<script defer src="app.js"></script>
+</head>
+<body>
+<main>
+  <header>
+    <div class="glance"><div id="room"></div><div class="time"><span id="clock"></span><span id="date"></span></div></div>
+    <div id="climate" class="climate" aria-label="Room readings"></div>
+    <nav aria-label="TV controls"><button id="quick">Room controls</button><button id="settings">Settings</button></nav>
+  </header>
+  <section class="shelf" aria-label="Selected app"><p id="shelf">LumaX</p></section>
+  <section class="dock" aria-label="Favorites" id="dock"></section>
+  <section class="library" aria-label="All apps">
+    <h2>All apps</h2>
+    <div class="tiles">
+      <div id="tv-input" hidden></div>
+      <div id="apps"></div>
+      <div id="tv-apps" hidden></div>
+    </div>
+  </section>
+  <p id="status" role="status"></p>
+</main>
+<aside id="panel" class="side" hidden>
+  <button id="close" class="close" type="button">Close</button>
+  <h2 id="panel-title"></h2>
+  <div id="controls"></div>
+  <form id="pair" hidden>
+    <label>Home Assistant address <input id="url" type="url" autocomplete="off" placeholder="https://homeassistant.example"></label>
+    <label>Access token <input id="token" type="password" autocomplete="off"></label>
+    <label>LG TV <select id="tv"><option value="">Choose a TV after connecting</option></select></label>
+    <label>Streamer input <select id="input"><option value="1">HDMI 1</option><option value="2">HDMI 2</option></select></label>
+    <label>Appearance <select id="appearance"><option value="black">Black</option><option value="alpine">Alpine</option></select></label>
+    <button type="submit">Save settings</button>
+    <button type="button" id="default-home">Change default Home app</button>
+    <button type="button" id="google-home">Open Google TV Home</button>
+    <div id="favorites"></div>
+    <button type="button" id="forget">Disconnect Home Assistant</button>
+    <p id="pair-status" role="status"></p>
+  </form>
+</aside>
+<div id="notice" hidden role="status"></div>
+</body>
+</html>

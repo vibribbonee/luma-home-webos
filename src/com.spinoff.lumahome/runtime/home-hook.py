@@ -37,8 +37,12 @@ def session():
         run(['/usr/bin/luna-send','-n','1','-f','luna://com.webos.applicationManager/launch',json.dumps(body)])
         log('Voice overlay' if params and params.get('voice') else 'Home '+('quick' if app.endswith('.overlay') else 'full'))
     def home_action(long_press):
-        try:swap=bool(json.load(open(ROOT+'/runtime.json')).get('home_swap',False))
-        except (IOError,ValueError):swap=False
+        try:settings=json.load(open(ROOT+'/runtime.json'))
+        except (IOError,ValueError):settings={}
+        swap=bool(settings.get('home_swap',False))
+        if settings.get('lumax_enabled') and not os.path.exists(ROOT+'/lumax.suspended'):
+            run(['/usr/bin/python',ROOT+'/lumax-home.py','home' if long_press != swap else 'quick'])
+            return
         if long_press != swap:
             params={'luma':'home'}
             try:
