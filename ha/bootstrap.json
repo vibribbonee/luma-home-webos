@@ -1,0 +1,53 @@
+{
+  "helpers": {
+    "pins": "input_text.luma_home_pinned_apps",
+    "controls": "input_text.luma_home_controls",
+    "temperature": "input_text.luma_home_temperature_entity",
+    "humidity": "input_text.luma_home_humidity_entity",
+    "room": "input_text.luma_home_room_name",
+    "hdmi1": "input_text.luma_home_hdmi_1_name",
+    "hdmi2": "input_text.luma_home_hdmi_2_name",
+    "theme": "input_select.luma_home_backdrop",
+    "idle": "input_number.luma_home_idle_minutes",
+    "climate": "input_boolean.luma_home_show_climate",
+    "background": "input_text.luma_home_background_image",
+    "tilesize": "input_select.luma_home_tile_size",
+    "tiles": "input_text.luma_home_tile_sizes"
+  },
+  "catalog": [
+    {
+      "id": "com.webos.app.hdmi1",
+      "title": "HDMI1",
+      "icon": "",
+      "visible": false,
+      "system": true
+    },
+    {
+      "id": "com.webos.app.hdmi2",
+      "title": "HDMI2",
+      "icon": "",
+      "visible": false,
+      "system": true
+    },
+    {
+      "id": "org.jellyfin.webos",
+      "title": "Jellyfin",
+      "icon": "",
+      "visible": true,
+      "system": false
+    },
+    {
+      "id": "youtube.leanback.v4",
+      "title": "YouTube AdFree",
+      "icon": "",
+      "visible": true,
+      "system": false
+    }
+  ],
+  "defaultPins": [
+    "youtube.leanback.v4",
+    "twitch.adamffdev.v1",
+    "org.jellyfin.webos",
+    "com.webosbrew.panelcomfort"
+  ]
+}

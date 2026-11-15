@@ -1,0 +1,12 @@
+const assert=require('assert'),fs=require('fs'),os=require('os'),path=require('path'),net=require('net'),{spawn}=require('child_process');
+const root=fs.mkdtempSync(path.join(os.tmpdir(),'luma-standby-')),modulePath=path.resolve(__dirname,'../tools/voice-standby.js');
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const socketPath=root+'/worker.sock',pidPath=root+'/worker.pid',activePidPath=root+'/active.pid',began=root+'/began';
+let child;
+function request(command){return new Promise((resolve,reject)=>{const s=net.connect(socketPath);let data='';s.on('connect',()=>s.write(command+'\n'));s.on('data',d=>data+=d);s.on('end',()=>resolve(data));s.on('error',reject);});}
+async function boot(){const code=`require(${JSON.stringify(modulePath)})(${JSON.stringify({socketPath,pidPath,activePidPath})}).then(gate=>{require('fs').writeFileSync(${JSON.stringify(began)},'started');setTimeout(()=>{gate.complete(true);setTimeout(()=>process.exit(0),5);},200);});process.on('SIGTERM',()=>process.exit(0));`;child=spawn(process.execPath,['-e',code],{stdio:['ignore','ignore','pipe']});let errors='';child.stderr.on('data',d=>errors+=d);for(let i=0;i<100;i++){if(fs.existsSync(pidPath)&&fs.existsSync(socketPath))return;if(child.exitCode!==null)throw Error(errors);await sleep(20);}throw Error('Standby startup timeout');}
+(async()=>{try{
+ await boot();assert.equal(await request('ping'),'ready\n');assert(!fs.existsSync(began),'no session runs while idle');assert(!fs.existsSync(activePidPath),'no active mic session while idle');assert.equal(fs.statSync(socketPath).mode&0o777,0o600);assert.equal(fs.statSync(pidPath).mode&0o777,0o600);
+ const ended=new Promise(r=>child.once('exit',r));const result=await request('start');assert(result.startsWith('started\n'));assert(result.includes('"done":true'));assert.equal(fs.readFileSync(activePidPath,'utf8'),String(child.pid));await ended;assert(!fs.existsSync(socketPath));assert(!fs.existsSync(pidPath));
+ fs.unlinkSync(began);fs.unlinkSync(activePidPath);await boot();assert.equal(await request('invalid'),'busy\n');assert(!fs.existsSync(began));const stopped=new Promise(r=>child.once('exit',r));child.kill('SIGTERM');await stopped;assert(!fs.existsSync(pidPath));assert(!fs.existsSync(socketPath));console.log('Passed: warm worker is inert until explicit start, private local socket, active PID tracking, completion and idle shutdown cleanup.');
+ }finally{if(child&&child.exitCode===null)child.kill();fs.rmSync(root,{recursive:true,force:true});}})().catch(e=>{console.error(e);process.exitCode=1;});

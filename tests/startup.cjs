@@ -1,0 +1,27 @@
+const {launch}=require('./_launch.cjs');
+const fs=require('fs'),path=require('path'),assert=require('assert');
+const root=path.resolve(__dirname,'..'),boot=JSON.parse(fs.readFileSync(root+'/ha/bootstrap.json'));
+(async()=>{const browser=await launch();try{
+ const page=await browser.newPage({viewport:{width:1920,height:1080}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.addInitScript(require('./_ha-mock.cjs').setup,{boot,catalogDelayMs:1800,discoveryDelayMs:300});
+ await page.addInitScript(()=>{window.videoLoads=0;HTMLMediaElement.prototype.load=function(){window.videoLoads++;};HTMLMediaElement.prototype.play=function(){return Promise.resolve();};});
+ await page.goto('file://'+root+'/src/com.spinoff.lumahome/index.html');
+ await page.waitForFunction(()=>window.lumaStatus&&window.commands.some(c=>c.includes('discover-ha')));
+ await page.evaluate(()=>{for(let i=0;i<4;i++)document.dispatchEvent(new CustomEvent('webOSRelaunch',{detail:{luma:'home',input:'1'}}));});
+ await page.waitForFunction(()=>window.lumaStatus().haConnected);
+ assert.equal(await page.evaluate(()=>!!window.catalogReady),false,'HA is ready without waiting for a slow app catalog');
+ await page.waitForFunction(()=>window.calls.some(c=>c.type==='luma_home/states'));
+ await page.waitForTimeout(450);
+ assert.equal(await page.evaluate(()=>window.commands.filter(c=>c.includes('discover-ha')).length),1,'repeated opens reuse discovery already in flight');
+ assert.equal(await page.evaluate(()=>window.sockets.length),1,'one HA socket per app');
+ assert.equal(await page.evaluate(()=>window.videoLoads),1,'overlapping opens initialize the HDMI preview once');
+ const input2=page.locator('[data-input="2"]'),input1=page.locator('[data-input="1"]');
+ await input2.hover();await page.locator('#settingsBtn').hover();await page.waitForTimeout(250);
+ assert.equal(await page.evaluate(()=>window.videoLoads),1,'crossing an input briefly does not initialize a preview');
+ await input2.hover();await page.waitForFunction(()=>window.videoLoads===2);
+ await input1.hover();await page.waitForFunction(()=>window.videoLoads===3);
+ await page.locator('#settingsBtn').click();await page.waitForTimeout(100);
+ assert.equal(await page.evaluate(()=>window.fullSnapshots),0,'opening pins does not download all HA states');
+ await page.locator('[data-tab="widgets"]').click();await page.waitForFunction(()=>window.fullSnapshots===1);
+ assert.deepStrictEqual(errors,[]);console.log('Passed: parallel HA/catalog startup, one discovery/socket across repeated opens, no duplicate or transient-hover previews, full-state fetch only for entity pickers.');
+ }finally{await browser.close();}})().catch(e=>{console.error(e);process.exitCode=1;});

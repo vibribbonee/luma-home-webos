@@ -1,0 +1,113 @@
+"""Per-TV settings and reports; no helper entities or wrapper scripts."""
+from __future__ import annotations
+import probatio as vol
+from homeassistant.core import callback
+from homeassistant.components import websocket_api
+from homeassistant.exceptions import HomeAssistantError
+from .const import DOMAIN
+
+def resolve(hass,msg):
+    entries=hass.data.get(DOMAIN,{})
+    if msg.get('entry_id') in entries:return entries[msg['entry_id']]
+    if msg.get('tv_id'):
+        for tv in entries.values():
+            if tv.tv_id==msg['tv_id']:return tv
+        raise HomeAssistantError('This TV is not paired with the Luma Home integration.')
+    if len(entries)==1:return next(iter(entries.values()))
+    raise HomeAssistantError('Select a Luma Home TV or add it in Devices & services.')
+def authorized(hass,connection,msg):
+    from homeassistant.auth.permissions.const import POLICY_CONTROL
+    tv=resolve(hass,msg)
+    if not connection.user.permissions.check_entity(tv.entity_id,POLICY_CONTROL):raise HomeAssistantError('You cannot control this TV.')
+    return tv
+COMMON={vol.Optional('entry_id'):str,vol.Optional('tv_id'):str}
+@websocket_api.websocket_command({vol.Required('type'):'luma_home/config/get',**COMMON})
+@websocket_api.async_response
+async def get_config(hass,connection,msg):
+    try:connection.send_result(msg['id'],authorized(hass,connection,msg).snapshot())
+    except HomeAssistantError as err:connection.send_error(msg['id'],'not_paired',str(err))
+@websocket_api.websocket_command({vol.Required('type'):'luma_home/config/set',vol.Required('settings'):dict,**COMMON})
+@websocket_api.async_response
+async def set_config(hass,connection,msg):
+    try:connection.send_result(msg['id'],await authorized(hass,connection,msg).update(msg['settings']))
+    except HomeAssistantError as err:connection.send_error(msg['id'],'invalid_settings',str(err))
+@websocket_api.websocket_command({vol.Required('type'):'luma_home/config/subscribe',**COMMON})
+@websocket_api.async_response
+async def subscribe(hass,connection,msg):
+    try:tv=authorized(hass,connection,msg)
+    except HomeAssistantError as err:connection.send_error(msg['id'],'not_paired',str(err));return
+    @callback
+    def changed(value):connection.send_event(msg['id'],value)
+    tv.config_listeners.add(changed)
+    connection.subscriptions[msg['id']]=lambda:tv.config_listeners.discard(changed)
+    connection.send_result(msg['id']);changed(tv.snapshot())
+@websocket_api.websocket_command({vol.Required('type'):'luma_home/report',vol.Required('status'):dict,**COMMON})
+@websocket_api.async_response
+async def report(hass,connection,msg):
+    try:tv=authorized(hass,connection,msg);tv.report(msg['status']);connection.send_result(msg['id'],{})
+    except HomeAssistantError as err:connection.send_error(msg['id'],'not_paired',str(err))
+@websocket_api.websocket_command({vol.Required('type'):'luma_home/states',vol.Required('entity_ids'):[str],**COMMON})
+@websocket_api.async_response
+async def states(hass,connection,msg):
+    from homeassistant.auth.permissions.const import POLICY_READ
+    try:resolve(hass,msg)
+    except HomeAssistantError as err:connection.send_error(msg['id'],'not_paired',str(err));return
+    result=[]
+    for entity_id in msg['entity_ids'][:100]:
+        state=hass.states.get(entity_id)
+        if state and connection.user.permissions.check_entity(entity_id,POLICY_READ):result.append(state.as_dict())
+    connection.send_result(msg['id'],result)
+@websocket_api.websocket_command({vol.Required('type'):'luma_home/list'})
+@websocket_api.async_response
+async def list_tvs(hass,connection,msg):
+    from homeassistant.auth.permissions.const import POLICY_CONTROL
+    connection.send_result(msg['id'],[{'entry_id':tv.entry.entry_id,'tv_id':tv.tv_id,'name':tv.entry.title} for tv in hass.data.get(DOMAIN,{}).values() if connection.user.permissions.check_entity(tv.entity_id,POLICY_CONTROL)])
+@websocket_api.websocket_command({vol.Required('type'):'luma_home/voice/config',**COMMON})
+@websocket_api.async_response
+async def voice_config(hass,connection,msg):
+    """Use HA's current per-device selector, including the preferred assistant."""
+    from homeassistant.components.assist_pipeline.pipeline import async_get_pipeline
+    from homeassistant.components.assist_pipeline.select import get_chosen_pipeline
+    from homeassistant.helpers import device_registry as dr
+    try:
+        tv=authorized(hass,connection,msg)
+        if not tv.config['microphone']:raise HomeAssistantError('The HA microphone is disabled for this TV.')
+        pipeline=async_get_pipeline(hass,get_chosen_pipeline(hass,DOMAIN,tv.tv_id))
+        device=dr.async_get(hass).async_get_device(identifiers={(DOMAIN,tv.tv_id)})
+        connection.send_result(msg['id'],{'pipeline':pipeline.id,'name':pipeline.name,'stt_engine':pipeline.stt_engine,'device_id':device.id if device else None,'voice_reply':tv.config['voice_reply']})
+    except HomeAssistantError as err:connection.send_error(msg['id'],'voice_unavailable',str(err))
+@websocket_api.websocket_command({vol.Required('type'):'luma_home/pair',vol.Required('url'):str,vol.Required('confirm'):bool,**COMMON})
+@websocket_api.async_response
+async def pair(hass,connection,msg):
+    from datetime import timedelta
+    from urllib.parse import urlparse
+    from homeassistant.auth.const import TOKEN_TYPE_LONG_LIVED_ACCESS_TOKEN
+    from homeassistant.helpers import instance_id
+    if not connection.user.is_admin or not msg['confirm']:
+        connection.send_error(msg['id'],'unauthorized','An administrator must explicitly pair this TV.');return
+    refresh=None
+    try:
+        tv=authorized(hass,connection,msg);url=msg['url'].rstrip('/');parsed=urlparse(url)
+        if parsed.scheme not in ('http','https') or not parsed.hostname or parsed.hostname in ('localhost','127.0.0.1','::1') or parsed.path or parsed.query or parsed.username:raise HomeAssistantError('Use a Home Assistant LAN address that the TV can reach.')
+        refresh=await hass.auth.async_create_refresh_token(connection.user,client_name='Luma Home '+tv.entry.title+' '+__import__('uuid').uuid4().hex[:6],token_type=TOKEN_TYPE_LONG_LIVED_ACCESS_TOKEN,access_token_expiration=timedelta(days=3650))
+        token=hass.auth.async_create_access_token(refresh)
+        await tv.command({'configure':{'tv_id':tv.tv_id,'settings':tv.config,'pairing':{'url':url,'uuid':await instance_id.async_get(hass),'service_name':hass.config.location_name,'token':token}},'background':True},overlay=True)
+        previous=tv.entry.data.get('refresh_token_id')
+        hass.config_entries.async_update_entry(tv.entry,data=dict(tv.entry.data)|{'refresh_token_id':refresh.id})
+        if previous:
+            old=hass.auth.async_get_refresh_token(previous)
+            if old:hass.auth.async_remove_refresh_token(old)
+        connection.send_result(msg['id'],{'paired':True})
+    except Exception:
+        if refresh:hass.auth.async_remove_refresh_token(refresh)
+        connection.send_error(msg['id'],'pairing_failed','Could not pair this TV. Check that Luma is installed and the TV is on.')
+@websocket_api.websocket_command({vol.Required('type'):'luma_home/announcement/result',vol.Required('run_id'):str,vol.Required('state'):vol.In(['playing','done','error','cancelled']),**COMMON})
+@websocket_api.async_response
+async def announcement_result(hass,connection,msg):
+    try:
+        tv=authorized(hass,connection,msg)
+        connection.send_result(msg['id'],{'accepted':tv.announcement_result(msg['run_id'],msg['state'])})
+    except HomeAssistantError as err:connection.send_error(msg['id'],'unauthorized',str(err))
+@callback
+def async_register(hass):
+    for fn in (get_config,set_config,subscribe,report,states,list_tvs,voice_config,pair,announcement_result):websocket_api.async_register_command(hass,fn)

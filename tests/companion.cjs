@@ -1,0 +1,26 @@
+const {launch}=require('./_launch.cjs'),{setup}=require('./_ha-mock.cjs');
+const fs=require('fs'),path=require('path'),assert=require('assert');
+const root=path.resolve(__dirname,'..'),boot=JSON.parse(fs.readFileSync(root+'/ha/bootstrap.json'));
+(async()=>{const browser=await launch();try{
+ const page=await browser.newPage({viewport:{width:1920,height:1080}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.addInitScript(setup,{boot});await page.addInitScript(()=>{window.hiddenFlag=false;Object.defineProperty(document,'hidden',{configurable:true,get:()=>window.hiddenFlag});window.webOSSystem={launchParams:'{"quick":true}',keepAlive:true,activate(){window.hiddenFlag=false},hide(){window.hiddenFlag=true;document.dispatchEvent(new Event('visibilitychange'));}};});
+ let requests=0,rejected=0;
+ await page.route('http://ha.invalid/api/camera_proxy/**',async route=>{const url=new URL(route.request().url()),sig=url.searchParams.get('authSig');url.searchParams.delete('authSig');const actual=url.pathname+(url.search?'?'+url.searchParams.toString():'');if(Buffer.from(sig||'','base64').toString()!==actual){rejected++;return route.fulfill({status:403,body:'Invalid signature'});}requests++;await route.fulfill({status:200,contentType:'image/png',headers:{'Cache-Control':'no-store'},body:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aYV0AAAAASUVORK5CYII=','base64')});});
+ await page.goto('file://'+root+'/src/com.spinoff.lumahome.overlay/index.html');await page.locator('#quickPanel [data-entity]').first().waitFor();
+ await page.evaluate(()=>window.configChange({tilesize:'Small',tiles:{'switch.test':'Compact'},columns:3}));
+ await page.waitForFunction(()=>document.querySelector('[data-entity="light.test"]').dataset.size==='Small');
+ assert.equal(await page.locator('[data-entity="switch.test"]').getAttribute('data-size'),'Compact');
+ const bounds=await page.evaluate(()=>{const p=document.getElementById('quickPanel'),s=document.querySelector('.quick-status'),c=document.querySelector('.quick-controls');return {bottom:p.getBoundingClientRect().bottom,statusBottom:s.getBoundingClientRect().bottom,scroll:c.scrollHeight,client:c.clientHeight};});assert(bounds.bottom<=1080&&bounds.statusBottom<=1080&&bounds.client>0);
+ const relaunch=d=>page.evaluate(detail=>document.dispatchEvent(new CustomEvent('webOSRelaunch',{detail})),d);
+ await relaunch({camera:'camera.test',mode:'snapshot',timeout:3,title:'Printer'});
+ await page.evaluate(()=>{window.hiddenFlag=true;document.dispatchEvent(new Event('visibilitychange'));window.hiddenFlag=false;document.dispatchEvent(new Event('visibilitychange'));});
+ await page.waitForFunction(()=>window.lumaCameraStatus().frames>=2);
+ await relaunch({voice:{phase:'reply',message:'The **printer** is ready <img src=x onerror=alert(1)>'}});
+ assert(await page.locator('#voicePanel').isVisible());assert(await page.locator('#camera').isVisible(),'voice must retain an active camera');
+ assert.equal(await page.locator('#voicePanel strong').textContent(),'printer');assert.equal(await page.locator('#voicePanel img').count(),0,'reply markup cannot create arbitrary HTML');
+ await page.keyboard.press('Escape');assert(await page.locator('#camera').isVisible(),'closing voice must not close camera');
+ assert.equal(rejected,0,'every changing snapshot URL must be signed with its cache-busting query');assert(requests>=2);assert.equal(await page.evaluate(()=>window.lumaCameraStatus().width),1);
+ await page.waitForFunction(()=>window.hiddenFlag,{timeout:6000});assert.deepStrictEqual(errors,[]);
+ await relaunch({voice:{phase:'listening',message:'Listening'}});assert(await page.locator('#voicePanel').isVisible());assert(await page.locator('#camera').isHidden(),'voice-only relaunch must not reveal an inactive camera');await page.keyboard.press('Escape');
+ console.log('Passed: shared quick-menu tile sizes and bounded layout, complete signed snapshot URLs, transient visibility during startup, multiple decoded frames and timeout after display.');
+ }finally{await browser.close();}})().catch(e=>{console.error(e);process.exitCode=1});

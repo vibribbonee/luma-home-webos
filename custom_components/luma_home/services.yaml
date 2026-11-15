@@ -1,0 +1,228 @@
+{
+  "open": {
+    "name": "Open Luma",
+    "description": "Open Home, the quick panel, settings or the ambient clock.",
+    "fields": {
+      "view": {
+        "default": "home",
+        "selector": {
+          "select": {
+            "options": [
+              "home",
+              "quick",
+              "settings",
+              "idle"
+            ]
+          }
+        }
+      },
+      "device_id": {
+        "name": "TV",
+        "selector": {
+          "device": {
+            "integration": "luma_home"
+          }
+        }
+      }
+    }
+  },
+  "select_input": {
+    "name": "Select input",
+    "description": "Preview or watch an HDMI input, releasing the existing video plane first.",
+    "fields": {
+      "input": {
+        "required": true,
+        "selector": {
+          "select": {
+            "options": [
+              {
+                "value": "1",
+                "label": "HDMI 1"
+              },
+              {
+                "value": "2",
+                "label": "HDMI 2"
+              }
+            ]
+          }
+        }
+      },
+      "watch": {
+        "default": true,
+        "selector": {
+          "boolean": {}
+        }
+      },
+      "device_id": {
+        "name": "TV",
+        "selector": {
+          "device": {
+            "integration": "luma_home"
+          }
+        }
+      }
+    }
+  },
+  "show_camera": {
+    "name": "Show camera overlay",
+    "description": "Push a timed doorbell or camera overlay over the current input or app.",
+    "fields": {
+      "camera": {
+        "required": true,
+        "selector": {
+          "entity": {
+            "domain": "camera"
+          }
+        }
+      },
+      "seconds": {
+        "default": 15,
+        "selector": {
+          "number": {
+            "min": 3,
+            "max": 120,
+            "unit_of_measurement": "s"
+          }
+        }
+      },
+      "position": {
+        "default": "top-right",
+        "selector": {
+          "select": {
+            "options": [
+              "top-right",
+              "top-left",
+              "bottom-right",
+              "bottom-left"
+            ]
+          }
+        }
+      },
+      "size": {
+        "default": 25,
+        "selector": {
+          "number": {
+            "min": 15,
+            "max": 45,
+            "unit_of_measurement": "%"
+          }
+        }
+      },
+      "mode": {
+        "default": "mjpeg",
+        "selector": {
+          "select": {
+            "options": [
+              "mjpeg",
+              "snapshot"
+            ]
+          }
+        }
+      },
+      "title": {
+        "selector": {
+          "text": {}
+        }
+      },
+      "device_id": {
+        "name": "TV",
+        "selector": {
+          "device": {
+            "integration": "luma_home"
+          }
+        }
+      }
+    }
+  },
+  "notify": {
+    "name": "Show notification",
+    "description": "Show a timed TV notification, for example when a print finishes.",
+    "fields": {
+      "message": {
+        "required": true,
+        "selector": {
+          "text": {}
+        }
+      },
+      "title": {
+        "selector": {
+          "text": {}
+        }
+      },
+      "seconds": {
+        "default": 15,
+        "selector": {
+          "number": {
+            "min": 3,
+            "max": 120,
+            "unit_of_measurement": "s"
+          }
+        }
+      },
+      "image": {
+        "selector": {
+          "text": {}
+        }
+      },
+      "device_id": {
+        "name": "TV",
+        "selector": {
+          "device": {
+            "integration": "luma_home"
+          }
+        }
+      }
+    }
+  },
+  "dismiss": {
+    "name": "Dismiss overlay",
+    "fields": {
+      "device_id": {
+        "name": "TV",
+        "selector": {
+          "device": {
+            "integration": "luma_home"
+          }
+        }
+      }
+    }
+  },
+  "launch_app": {
+    "name": "Launch app",
+    "fields": {
+      "app": {
+        "required": true,
+        "selector": {
+          "text": {}
+        }
+      },
+      "device_id": {
+        "name": "TV",
+        "selector": {
+          "device": {
+            "integration": "luma_home"
+          }
+        }
+      }
+    }
+  },
+  "set_settings": {
+    "name": "Update Luma settings",
+    "fields": {
+      "settings": {
+        "required": true,
+        "selector": {
+          "object": {}
+        }
+      },
+      "device_id": {
+        "name": "TV",
+        "selector": {
+          "device": {
+            "integration": "luma_home"
+          }
+        }
+      }
+    }
+  }
+}

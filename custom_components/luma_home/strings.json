@@ -1,0 +1,41 @@
+{
+  "title": "Luma Home",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up Luma Home",
+        "description": "Select the LG webOS TV that has Luma installed. Each TV gets its own pins, controls, voice preferences and wallpaper.",
+        "data": {
+          "tv_entity": "LG webOS TV",
+          "name": "Room name",
+          "import_existing": "Import existing Luma settings"
+        }
+      }
+    },
+    "error": {
+      "not_webostv": "Choose a TV from the LG webOS integration."
+    },
+    "abort": {
+      "already_configured": "This TV is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Luma preferences",
+        "description": "Pins, lights, wallpaper images and room widgets are also editable using the Luma Home dashboard card.",
+        "data": {
+          "room": "Room",
+          "theme": "Theme",
+          "columns": "Columns",
+          "voice_mode": "Voice mode",
+          "voice_listen_seconds": "Voice listen seconds",
+          "voice_silence_seconds": "Voice silence seconds",
+          "voice_reply": "Voice reply",
+          "streamer_remote": "Streamer remote",
+          "streamer_adb": "Streamer adb"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,17 @@
+Stock wallpapers, bundled at 1920 x 1080 under the Unsplash License:
+https://unsplash.com/license
+
+Forest — Dave Hoefler, Sunlight through trees
+https://unsplash.com/photos/sunlight-through-trees-hQNY2WP-qY4
+
+Alpine — ConfinedRiley, Moraine Lake sunrise
+https://unsplash.com/photos/a-lake-surrounded-by-mountains-mIj8Cn3oNDg
+
+Dunes — Tim de Groot, Vast desert
+https://unsplash.com/photos/vast-desert-FA0Xhlv7m6A
+
+Coast — Jeremy Bishop, Ocean water under gray sky
+https://unsplash.com/photos/ocean-water-under-gray-sky-DFJahLoBHK4
+
+Twilight — original Luma Home generated landscape.
+Other themes are original CSS gradients.

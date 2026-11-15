@@ -1,0 +1,7 @@
+/* Focus must remain distinct from entity on/off state, also for div cards. */
+[data-nav-card]:focus,[data-nav-card]:focus-within{outline:4px solid #fff!important;outline-offset:3px;box-shadow:0 0 0 7px #101827cc!important;z-index:2}
+button:focus,select:focus,input:focus{outline:4px solid #fff;outline-offset:3px}
+[data-nav-card] button:focus,[data-nav-card] input:focus{outline:3px solid #a9d6ff!important;outline-offset:2px}
+.field:focus-within,.pin-row:focus-within{box-shadow:inset 4px 0 #a9d6ff;background-color:#30425f}
+[data-edit="1"]:focus{outline-color:#ffcc89!important}
+#navHint{font-size:17px}.quick-label{letter-spacing:.4px}

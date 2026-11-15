@@ -1,0 +1,20 @@
+const {launch}=require('./_launch.cjs');
+const fs=require('fs'),path=require('path'),assert=require('assert');
+const root=path.resolve(__dirname,'..'),boot=JSON.parse(fs.readFileSync(root+'/ha/bootstrap.json'));
+(async()=>{const browser=await launch();try{for(const width of [1920,1280]){
+ const page=await browser.newPage({viewport:{width,height:width*1080/1920}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.addInitScript(require('./_ha-mock.cjs').setup,{boot});await page.goto('file://'+root+'/src/com.spinoff.lumahome/index.html');
+ await page.waitForFunction(()=>window.configChange&&document.querySelector('[data-entity]'));
+ await page.evaluate(()=>window.configChange({pins:Array.from({length:14},(_,i)=>'test.app'+i)}));
+ await page.waitForFunction(()=>document.querySelectorAll('#apps .app').length===17);
+ const rail=page.locator('#apps'),shell=page.locator('#appRail'),r=await shell.boundingBox();
+ const pos=()=>rail.evaluate(e=>e.scrollLeft);
+ await page.mouse.move(r.x+r.width-8,r.y+r.height/2);await page.waitForFunction(()=>document.getElementById('apps').scrollLeft>200);
+ await page.mouse.move(r.x+r.width/2,r.y+r.height/2);const stopped=await pos();await page.waitForTimeout(200);assert(Math.abs(await pos()-stopped)<3,'center stops hover scrolling');
+ await page.mouse.move(r.x+8,r.y+r.height/2);await page.waitForFunction(()=>document.getElementById('apps').scrollLeft<1);
+ await page.mouse.move(r.x+r.width/2,r.y+r.height/2);await page.mouse.wheel(0,550);await page.waitForFunction(()=>document.getElementById('apps').scrollLeft>=500);
+ await page.locator('#apps .app').first().focus();for(let i=0;i<16;i++)await page.keyboard.press('ArrowRight');
+ assert.equal(await page.evaluate(()=>document.activeElement.textContent.trim()),'All apps');const last=await page.locator('#apps .app').last().boundingBox();assert(last.x+last.width<=r.x+r.width+2,'last tile is fully reachable');
+ await page.mouse.move(r.x+8,r.y+r.height/2);await page.waitForTimeout(80);await page.evaluate(()=>{document.getElementById('settings').hidden=false;});await page.waitForTimeout(80);const paused=await pos();await page.waitForTimeout(150);assert.equal(await pos(),paused,'settings stops background scrolling');
+ assert.deepStrictEqual(errors,[]);await page.close();
+ }console.log('Passed: pointer edge scrolling, stop at center/bounds/modal, remote wheel, all apps reachable with arrows at 1080p and scaled 720p.');}finally{await browser.close();}})().catch(e=>{console.error(e);process.exitCode=1;});

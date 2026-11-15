@@ -1,0 +1,19 @@
+{
+  "id": "com.spinoff.lumahome",
+  "version": "0.4.5",
+  "vendor": "Spinoff",
+  "type": "web",
+  "main": "index.html",
+  "title": "Luma Home",
+  "icon": "icon.png",
+  "largeIcon": "icon.png",
+  "resolution": "1920x1080",
+  "disableBackHistoryAPI": true,
+  "noSplashOnLaunch": true,
+  "spinnerOnLaunch": false,
+  "inspectable": true,
+  "transparent": true,
+  "enablePigScreenSaver": false,
+  "defaultWindowType": "overlay",
+  "handlesRelaunch": true
+}
