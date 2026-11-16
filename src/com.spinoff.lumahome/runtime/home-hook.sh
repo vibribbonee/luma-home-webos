@@ -21,15 +21,13 @@ case "${1:-start}" in
   "$ROOT/home-native.sh" disable
   if [ -f "$ROOT/voice.enabled" ]; then "$0" start; else stop_process; fi
   ;;
- enable) "$ROOT/home-native.sh" enable; touch "$ROOT/home-hook.enabled"; "$0" start ;;
+ enable) touch "$ROOT/home-hook.enabled"; "$0" start ;;
  restart)
-  was_home=0;[ ! -f "$ROOT/home-hook.enabled" ] || was_home=1
   stop_process
-  if [ "$was_home" = 1 ]; then "$ROOT/home-native.sh" enable; touch "$ROOT/home-hook.enabled"; fi
   "$0" start
   ;;
  start)
-  if [ -f "$ROOT/home-hook.enabled" ]; then "$ROOT/home-native.sh" enable; elif [ ! -f "$ROOT/voice.enabled" ]; then exit 0; fi
+  if [ ! -f "$ROOT/home-hook.enabled" ] && [ ! -f "$ROOT/voice.enabled" ]; then exit 0; fi
   if running; then exit 0; fi
   nohup /usr/bin/python "$ROOT/home-hook.py" > "$ROOT/home-hook.log" 2>&1 </dev/null &
   echo "$!" > "$ROOT/home-hook.pid"

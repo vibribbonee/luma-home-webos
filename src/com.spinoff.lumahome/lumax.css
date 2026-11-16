@@ -1,0 +1,96 @@
+/* The TV uses the same solid surfaces and focus treatment as the Streamer. */
+.hero{display:block}
+.hero .clock,.hero .date{display:inline-block;vertical-align:middle}
+.hero .date{margin:0 0 0 22px;padding-left:22px;border-left:1px solid #ffffff36}
+.room-readings{display:flex;align-items:center;margin-top:12px;color:#e6e7ee}
+.room-readings[hidden],.room-reading[hidden]{display:none}
+.room-reading{display:flex;align-items:center;font-size:23px;font-weight:400}
+.room-reading+.room-reading{margin-left:26px}
+.room-reading .luma-icon{width:23px;height:23px;margin-right:8px}
+.lumax-style *, .lumax-style *::before, .lumax-style *::after{
+    animation:none!important;transition:none!important;scroll-behavior:auto!important;
+    -webkit-backdrop-filter:none!important;backdrop-filter:none!important;
+}
+.lumax-style[data-theme=Twilight]:not(.custom-background) .backdrop{background:#09090c;filter:none}
+.lumax-style[data-theme=Twilight]:not(.custom-background) .backdrop::after{background:none}
+.lumax-style .brand{font-size:19px;letter-spacing:.14em;text-transform:uppercase;color:#a6a8b1}
+.lumax-style .brand>.luma-icon{display:none}
+.lumax-style .hero{margin:14px 0 22px}
+.lumax-style .hero .date{font-size:21px;color:#b8b9c1;letter-spacing:.09em;text-transform:uppercase}
+.lumax-style .header-buttons button,.lumax-style .control{background:#1d1e22;border-color:#ffffff25;box-shadow:none}
+.lumax-style .control[aria-pressed=true]{background:#30343e;color:#fff}
+.lumax-style .control[aria-pressed=true] .state{color:#e6e7ee}
+.lumax-style .preview{box-shadow:none;background:#121319}
+.lumax-style #previewFallback{background:#1b1c22}
+.lumax-style .app-rail{background:#17171b;border:1px solid #ffffff25;border-radius:30px}
+.lumax-style .app-rail .apps{padding:14px 16px}
+.lumax-style .app .icon-wrap{border:1px solid #ffffff20;box-shadow:none}
+.lumax-style .app:focus{transform:none;background:transparent;outline:3px solid #fff;outline-offset:-3px}
+.lumax-style .app:focus .icon-wrap{box-shadow:none}
+.lumax-style button:focus,.lumax-style input:focus,.lumax-style select:focus{box-shadow:none}
+.lumax-style .rail-left{background:linear-gradient(90deg,#17171b,transparent)}
+.lumax-style .rail-right{background:linear-gradient(270deg,#17171b,transparent)}
+
+/* Layout shared with the native launcher: fixed clock and actions, then the
+   focused title, a four-tile dock and the rest of the apps in a vertical grid. */
+#lumaxControls{display:none}
+.lumax-style #home{padding:48px 110px 22px}
+.lumax-style #home>header{position:relative;z-index:2}
+.lumax-style .header-buttons{position:absolute;right:0;top:42px}
+.lumax-style .header-buttons button{height:64px;min-width:68px;border-radius:36px;font-size:24px;padding:0 24px}
+.lumax-style #lumaxControls{display:flex}
+.lumax-style #idleBtn,.lumax-style #classicDashboard,.lumax-style #classicApps,.lumax-style #home>footer{display:none}
+.lumax-style .hero{position:relative;z-index:1;pointer-events:none}
+#launcher{position:absolute;z-index:0;top:245px;right:110px;bottom:0;left:110px;overflow:hidden auto;
+    padding:292px 14px 54px;scrollbar-width:none}
+#launcher::-webkit-scrollbar{display:none}
+#launcherTitle{font-size:82px;font-weight:300;letter-spacing:-3px;margin:0 0 30px 20px;line-height:1.05;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.launcher-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-gap:38px;padding:17px}
+#launcherDock{border:1px solid #ffffff25;border-radius:48px;background:#17171b}
+#launcherDrawer{margin-top:30px}
+#launcherDrawer[hidden],#launcher[hidden],#roomPanel[hidden]{display:none}
+.launcher-tile{display:block;width:100%;padding:0;background:transparent;border:0;color:#f0f2f8;text-align:center}
+.launcher-tile:hover,.lumax-style .launcher-tile:focus{outline:0;background:transparent}
+.launcher-card{height:199px;display:flex;align-items:center;justify-content:center;
+    position:relative;border-radius:32px;background:#20232d;border:1px solid #ffffff22}
+.launcher-tile .icon-wrap{position:absolute;top:0;right:0;bottom:0;left:0;border-radius:inherit;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.launcher-tile img{width:100px;height:100px;object-fit:contain;border-radius:14px}
+.launcher-tile .luma-icon,.launcher-tile .brand-mark{width:80px;height:80px}
+.launcher-tile-name{display:block;padding:12px 4px 0;font-size:25px;font-weight:400;line-height:1.15;
+    overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.launcher-tile:focus .launcher-card{border-color:#fff;box-shadow:0 0 0 3px #fff}
+.launcher-tile:focus .launcher-tile-name{font-weight:600}
+#roomPanel{position:absolute;z-index:4;right:0;top:0;bottom:0;width:630px;padding:48px 42px;
+    background:#1b1d24;border-left:1px solid #ffffff28;overflow:auto}
+.room-panel-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:38px}
+.room-panel-header h2{font-size:38px;font-weight:400}
+#roomPanel .controls{margin:0;width:100%}
+#roomPanel .control{padding-left:20px;padding-right:18px}
+.lumax-room-open #launcher,.lumax-room-open #home>header{pointer-events:none}
+@font-face{font-family:Outfit;src:url('assets/outfit.ttf') format('truetype');font-weight:100 900;font-display:swap}
+.lumax-style{font-family:Outfit,"Helvetica Neue",Arial,sans-serif}
+.lumax-style .hero .clock{font-family:inherit;font-size:99px;font-weight:300}
+.lumax-style .hero .date{font-size:26px}
+.lumax-style .brand>[data-icon]{display:none}
+.lumax-style[data-theme=Twilight]:not(.custom-background) .backdrop{background:radial-gradient(ellipse at 32% 43%,#0b2d41 0,#071923 43%,#030305 80%)}
+.launcher-settings-label{display:none}
+.lumax-style .launcher-settings-label{display:inline;margin-left:12px}
+.lumax-style #roomPanel button,.lumax-style .header-buttons button{width:auto;white-space:nowrap}
+.lumax-style .header-buttons{top:65px}
+.lumax-style .header-buttons button{height:82px;font-size:28px;font-weight:500;padding:0 31px}
+#launcherTitle{margin-bottom:71px;font-size:88px}
+.launcher-grid{grid-gap:59px;padding:27px 41px}
+#launcherDrawer{margin-top:57px}
+.lumax-style #settings{left:auto;right:0;width:min(900px,92vw);padding:36px 34px;box-shadow:none}
+.lumax-style #settings nav{flex-wrap:wrap}
+.lumax-style #settings nav button{font-size:18px;padding:10px 13px;margin:4px 6px 4px 0}
+.lumax-style #settings .field{min-width:0}
+.lumax-style #settings .field select,.lumax-style #settings .field input{min-width:0;width:57%}
+.lumax-style #settings .rows{grid-template-columns:minmax(0,1fr)}
+#inputPreview{position:absolute;z-index:4;top:0;right:0;bottom:0;left:0;display:flex;align-items:center;justify-content:center;background:#06070be6}
+#inputPreview[hidden]{display:none}
+#inputPreview .preview{width:1320px;padding-top:742px}
+#inputPreview .preview-bottom{gap:24px}
+#inputPreview h1{flex:1}
+#haStatus{margin-top:24px;color:#b8b9c1;font-size:19px}

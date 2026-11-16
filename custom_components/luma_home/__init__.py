@@ -4,9 +4,10 @@ import probatio as vol
 from homeassistant.core import HomeAssistant,ServiceCall
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv,device_registry as dr
+from homeassistant.helpers import entity_registry as er
 from homeassistant.components.http import StaticPathConfig
 from .const import DOMAIN,PLATFORMS
-from .coordinator import LumaTV
+from .coordinator import LumaTV,tv_catalog_store
 async def async_setup(hass:HomeAssistant,config):
     hass.data.setdefault(DOMAIN,{})
     from .websocket import async_register
@@ -35,7 +36,7 @@ async def async_setup(hass:HomeAssistant,config):
         elif name=='select_input':await tv.select_input(d['input'],d.get('watch',True))
         elif name=='show_camera':await tv.camera(d['camera'],d.get('seconds',15),d.get('position','top-right'),d.get('size',25),d.get('mode','mjpeg'),d.get('title',''))
         elif name=='notify':await tv.notify(d['message'],d.get('title',''),d.get('seconds'),d.get('image',''))
-        elif name=='dismiss':await tv.command({'close':True},overlay=True)
+        elif name=='dismiss':await tv.dismiss()
         elif name=='launch_app':await tv.launch_app(d['app'])
         elif name=='set_settings':await tv.update(d['settings'])
     schemas={
@@ -47,17 +48,32 @@ async def async_setup(hass:HomeAssistant,config):
     for name,schema in schemas.items():hass.services.async_register(DOMAIN,name,handle,schema=vol.Schema(common|schema))
     return True
 async def async_setup_entry(hass,entry):
-    tv=entry.runtime_data=LumaTV(hass,entry);hass.data[DOMAIN][entry.entry_id]=tv
-    dr.async_get(hass).async_get_or_create(config_entry_id=entry.entry_id,identifiers={(DOMAIN,entry.unique_id)},name=entry.title,manufacturer='Luma Home',model='webOS Home and Home Assistant overlays')
+    tv=entry.runtime_data=LumaTV(hass,entry)
+    await tv.load_catalog()
+    hass.data[DOMAIN][entry.entry_id]=tv
+    devices = dr.async_get(hass)
+    identifiers = {(DOMAIN, entry.unique_id)}
+    model = 'LumaX Streamer' if tv.streamer_only else 'webOS Home and Home Assistant overlays'
+    existing = devices.async_get_device(identifiers=identifiers)
+    device = devices.async_get_or_create(config_entry_id=entry.entry_id, identifiers=identifiers,
+                                         name=entry.title, manufacturer='Luma Home', model=model)
+    if existing is None:
+        area_id = entry.data.get('area_id')
+        if not area_id:
+            entity = er.async_get(hass).async_get(tv.entity_id)
+            source_device = devices.async_get(entity.device_id) if entity and entity.device_id else None
+            area_id = (entity.area_id if entity else None) or (source_device.area_id if source_device else None)
+        if area_id:
+            devices.async_update_device(device.id, area_id=area_id)
     entry.async_on_unload(tv.start())
-    await hass.config_entries.async_forward_entry_setups(entry,PLATFORMS)
-    hybrid = tv.config['lumax_enabled']
+    await hass.config_entries.async_forward_entry_setups(entry, platforms_for(tv))
+    hybrid = (tv.config['lumax_enabled'], tv.config['lumax_input'])
     async def options_changed(hass,entry):
         nonlocal hybrid
         tv.config_changed()
-        enabled = tv.config['lumax_enabled']
-        if enabled != hybrid:
-            hybrid = enabled
+        routing = (tv.config['lumax_enabled'], tv.config['lumax_input'])
+        if routing != hybrid:
+            hybrid = routing
             try:
                 await tv.configure_tv()
             except HomeAssistantError:
@@ -66,11 +82,20 @@ async def async_setup_entry(hass,entry):
     entry.async_on_unload(entry.add_update_listener(options_changed))
     return True
 async def async_unload_entry(hass,entry):
-    ok=await hass.config_entries.async_unload_platforms(entry,PLATFORMS)
-    if ok:hass.data[DOMAIN].pop(entry.entry_id,None)
-    return ok
+    tv = entry.runtime_data
+    if not await hass.config_entries.async_unload_platforms(entry, platforms_for(tv)):
+        return False
+    hass.data[DOMAIN].pop(entry.entry_id, None)
+    if tv.catalog_store and tv.catalog_ready:
+        await tv.catalog_store.async_save({'catalog': tv.catalog})
+    return True
+
+def platforms_for(tv):
+    return ['button', 'select', 'notify'] if tv.streamer_only else PLATFORMS
 
 async def async_remove_entry(hass,entry):
+    if not entry.data.get('streamer_only'):
+        await tv_catalog_store(hass,entry.entry_id).async_remove()
     token_id=entry.data.get('refresh_token_id')
     if token_id:
         refresh=hass.auth.async_get_refresh_token(token_id)

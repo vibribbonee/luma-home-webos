@@ -10,7 +10,10 @@ from .entity import LumaEntity
 SELECTS={'theme':('Wallpaper theme',THEMES),'tilesize':('Default tile size',['Small','Compact','Standard','Large']),'voice_mode':('Voice button mode',['hold','tap'])}
 async def async_setup_entry(hass,entry,async_add_entities):
     tv=entry.runtime_data
-    async_add_entities([LumaSelect(tv,k,*v) for k,v in SELECTS.items()]+[LumaVoiceAssistant(hass,tv)])
+    entities = [LumaVoiceAssistant(hass,tv)]
+    if not tv.streamer_only:
+        entities.extend(LumaSelect(tv,k,*v) for k,v in SELECTS.items())
+    async_add_entities(entities)
 class LumaSelect(LumaEntity,SelectEntity):
     _attr_entity_category=EntityCategory.CONFIG
     def __init__(self,tv,key,name,options):super().__init__(tv,key,name);self._attr_options=options

@@ -42,7 +42,9 @@ def home_assistant(view):
                       {'Authorization': 'Bearer ' + pairing['token'], 'Content-Type': 'application/json'})
     if not pairing['tv_id']:
         raise ValueError('The TV has no paired identity')
-    response = build_opener(NoRedirect()).open(request, timeout=1.2)
+    # Quick Menu routing can wait for a just-requested HDMI switch to settle.
+    timeout = 3.2 if view == 'quick' else 1.2
+    response = build_opener(NoRedirect()).open(request, timeout=timeout)
     try:
         return response.getcode() == 200
     finally:
@@ -62,7 +64,7 @@ if __name__ == '__main__':
     if view not in ('home', 'quick'):
         sys.exit(1)
     signal.signal(signal.SIGALRM, timed_out)
-    signal.alarm(2)
+    signal.alarm(4 if view == 'quick' else 2)
     try:
         routed = home_assistant(view)
     except Exception:

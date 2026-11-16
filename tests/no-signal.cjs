@@ -8,6 +8,14 @@ with tempfile.TemporaryDirectory() as root:
  def luna(method,body):return {'returnValue':True,'signalState':{'videoSignalState':signals.get(body['pipelineId'],'bad')}}
  def launch(params):calls.append(params);return {'returnValue':True}
  a.luna=luna;a.launch=launch
+ hybrid={'lumax_enabled':True,'lumax_input':1}
+ assert a.protected_hdmi(['com.webos.app.hdmi2'],hybrid)=='com.webos.app.hdmi2'
+ assert a.protected_hdmi(['com.webos.app.hdmi1'],hybrid) is None
+ assert a.protected_hdmi(['com.webos.app.hdmi1'],dict(hybrid,lumax_input=2))=='com.webos.app.hdmi1'
+ assert a.protected_hdmi(['com.webos.app.hdmi2'],{'lumax_enabled':False}) is None
+ open(root+'/lumax.suspended','w').close()
+ assert a.protected_hdmi(['com.webos.app.hdmi2'],hybrid) is None
+ os.unlink(root+'/lumax.suspended')
  h=a.Handoff();video={'video':[{'sink':'MAIN','appId':'com.webos.app.hdmi2','context':'old'}]}
  h.tick(['com.spinoff.lumahome','com.webos.app.hdmi2'],video,0);h.tick(['com.spinoff.lumahome','com.webos.app.hdmi2'],video,8);assert not calls,'do not replace an open menu'
  h.tick(['com.webos.app.hdmi2'],video,10);h.tick(['com.webos.app.hdmi2'],video,12);assert not calls

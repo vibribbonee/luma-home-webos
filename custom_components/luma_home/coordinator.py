@@ -10,19 +10,52 @@ from homeassistant.core import callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.event import async_track_state_change_event
+from homeassistant.helpers.storage import Store
 from .const import APP,OVERLAY,DOMAIN,settings,validate_patch
-from .lumax import StreamerOverlay
+from .lumax import QuickPanel, StreamerOverlay, active_streamer_input, artwork_revision, catalog_entries, overlay_tv_attributes
 _LOGGER=logging.getLogger(__name__)
+
+def tv_catalog_store(hass, entry_id):
+    return Store(hass, 1, f'{DOMAIN}.catalog.{entry_id}')
+
+
 class LumaTV:
     def __init__(self,hass,entry):
         self.hass=hass;self.entry=entry;self.listeners=set();self.config_listeners=set();self.status={};self.catalog=[];self.last_seen=None;self.command_lock=asyncio.Lock();self.announcements={}
         self.streamer_overlay = StreamerOverlay()
+        self.quick_panel = QuickPanel(hass.loop)
+        self.quick_handoff = None
+        self.quick_handoff_target = None
+        self.input_transition = (None, 0)
+        self.catalog_artwork = {}
+        self.artwork_version = ""
+        self.catalog_ready = False
+        self.catalog_store = None if self.streamer_only else tv_catalog_store(hass, entry.entry_id)
+
+    async def load_catalog(self):
+        if self.catalog_store is None:
+            return
+        try:
+            saved = await self.catalog_store.async_load()
+        except (HomeAssistantError, OSError, ValueError):
+            _LOGGER.warning('Could not read the cached TV catalog. It will be refreshed when the TV reconnects.')
+            return
+        if isinstance(saved, dict) and isinstance(saved.get('catalog'), list):
+            self.catalog = catalog_entries(saved['catalog'])
+            self.catalog_ready = True
     @property
     def tv_id(self):return self.entry.unique_id
     @property
     def config(self):return settings(self.entry.options)
     @property
+    def streamer_only(self):
+        return bool(self.entry.data.get('streamer_only'))
+    @property
     def entity_id(self):
+        if self.streamer_only:
+            return er.async_get(self.hass).async_get_entity_id(
+                'remote', 'androidtv_remote', self.entry.data['remote_unique_id'],
+            ) or self.entry.data['remote_entity']
         return er.async_get(self.hass).async_get_entity_id('media_player','webostv',self.entry.data['webos_unique_id']) or self.entry.data['tv_entity']
     @property
     def available(self):
@@ -37,21 +70,27 @@ class LumaTV:
         for fn in tuple(self.config_listeners):fn(payload)
         self.publish()
     def snapshot(self):
-        return {'entry_id':self.entry.entry_id,'tv_id':self.tv_id,'name':self.entry.title,'settings':self.config,'catalog':deepcopy(self.catalog),'status':dict(self.status),'integration_version':'0.4.6','clock':{'utc_ms':int(datetime.now(timezone.utc).timestamp()*1000),'time_zone':self.hass.config.time_zone}}
+        return {'entry_id':self.entry.entry_id,'tv_id':self.tv_id,'name':self.entry.title,'streamer_only':self.streamer_only,'settings':self.config,'catalog':deepcopy(self.catalog),'catalog_ready':self.catalog_ready,'artwork_version':self.artwork_version,'status':dict(self.status),'integration_version':'0.4.20','clock':{'utc_ms':int(datetime.now(timezone.utc).timestamp()*1000),'time_zone':self.hass.config.time_zone}}
     async def update(self,patch,*,push=True):
         checked=validate_patch(patch);self.hass.config_entries.async_update_entry(self.entry,options=self.config|checked);self.config_changed()
-        if push and any(k.startswith('voice_') or k in ('lumax_enabled','home_button','home_swap','microphone','no_signal','screensaver') for k in checked):
+        if push and any(k.startswith('voice_') or k in ('lumax_enabled','lumax_input','home_button','home_swap','microphone','no_signal','screensaver') for k in checked):
             await self.configure_tv()
         return self.snapshot()
-    async def command(self,params,*,overlay=False):
+    async def command(self,params,*,overlay=False,app=None):
+        if self.streamer_only:
+            raise HomeAssistantError('This action needs a connected LumaX overlay or an LG webOS TV.')
         state=self.hass.states.get(self.entity_id)
         if not state or state.state in ('off','unavailable','unknown'):raise HomeAssistantError('Turn on this TV before sending a Luma command.')
-        await self.hass.services.async_call('webostv','command',{'entity_id':self.entity_id,'command':'system.launcher/launch','payload':{'id':OVERLAY if overlay else APP,'params':params}},blocking=True)
+        await self.hass.services.async_call('webostv','command',{'entity_id':self.entity_id,'command':'system.launcher/launch','payload':{'id':app or (OVERLAY if overlay else APP),'params':params}},blocking=True)
     async def configure_tv(self):
+        if self.streamer_only:
+            return
         cfg=self.config
-        runtime={k:cfg[k] for k in cfg if k.startswith('voice_') or k in ('lumax_enabled','home_button','home_swap','microphone','no_signal','screensaver')}
+        runtime={k:cfg[k] for k in cfg if k.startswith('voice_') or k in ('lumax_enabled','lumax_input','home_button','home_swap','microphone','no_signal','screensaver')}
         await self.command({'configure':{'tv_id':self.tv_id,'settings':runtime},'background':True},overlay=True)
     async def open(self,view='home',tab='pins'):
+        if view in ('home', 'quick') and self.quick_panel.send('close'):
+            return
         if view=='quick':
             if not await self.show_streamer_overlay({'kind': 'quick'}):
                 await self.command({'quick':True,'toggle':False},overlay=True)
@@ -59,8 +98,8 @@ class LumaTV:
             await self.command({'luma':view,'tab':tab})
     async def open_streamer_home(self):
         cfg = self.config
-        remote = cfg['streamer_remote']
-        if not cfg['lumax_enabled'] or not remote:
+        remote = self.entity_id if self.streamer_only else cfg['streamer_remote']
+        if not remote or not (self.streamer_only or cfg['lumax_enabled']):
             return False
         state = self.hass.states.get(remote)
         if state is None or state.state in ('unavailable', 'unknown'):
@@ -68,24 +107,119 @@ class LumaTV:
         try:
             async with asyncio.timeout(0.9):
                 await self.hass.services.async_call('remote', 'turn_on', {
-                    'entity_id': remote, 'activity': 'lumax://home',
+                    'entity_id': remote, 'activity': cfg['lumax_activity'],
                 }, blocking=True)
-                await self.select_input(cfg['lumax_input'])
+                if not self.streamer_only:
+                    port = cfg['lumax_input']
+                    tv = self.hass.states.get(self.entity_id)
+                    if active_streamer_input(tv.state if tv else None, tv.attributes if tv else {}, cfg) is None:
+                        await self.select_input(port)
             return True
         except (HomeAssistantError, TimeoutError):
             return False
     async def show_streamer_overlay(self, event):
+        return bool(await self.route_streamer_overlay(event))
+
+    def quick_streamer_port(self):
         config = self.config
+        if self.streamer_only or not config['lumax_enabled']:
+            return None
+        state = self.hass.states.get(self.entity_id)
+        return active_streamer_input(state.state, state.attributes, config) if state else None
+
+    @callback
+    def reconcile_quick_panel(self):
+        owner = self.quick_panel.active_owner
+        port = self.quick_streamer_port() if owner is not None else None
+        target = (owner, port)
+        if self.quick_handoff and not self.quick_handoff.done():
+            if self.quick_handoff_target == target:
+                return
+            self.quick_handoff.cancel()
+        if port is None:
+            return
+
+        def accept():
+            return self.quick_streamer_port() == port and self.quick_panel.send('close', expected_owner=owner)
+
+        self.quick_handoff_target = target
+        self.quick_handoff = self.entry.async_create_background_task(
+            self.hass, self.streamer_overlay.deliver({'kind': 'quick'}, input_port=port, accept=accept),
+            'Move Luma Home Room controls to the Streamer',
+        )
+
+    async def overlay_attributes(self, state):
+        async def read_app_id():
+            try:
+                async with asyncio.timeout(0.3):
+                    result = await self.hass.services.async_call(
+                        'webostv', 'command',
+                        {'entity_id': self.entity_id,
+                         'command': 'com.webos.applicationManager/getForegroundAppInfo'},
+                        blocking=True, return_response=True,
+                    )
+            except (HomeAssistantError, TimeoutError):
+                return None
+            payload = (result or {}).get(self.entity_id, {})
+            app_id = payload.get('appId') if isinstance(payload, dict) else None
+            return app_id if isinstance(app_id, str) else None
+
+        return await overlay_tv_attributes(read_app_id, state.attributes, lambda: self.input_transition)
+
+    async def route_streamer_overlay(self, event, renderer=None):
+        config = self.config
+        if self.streamer_only:
+            return await self.streamer_overlay.deliver(event, renderer)
         if not config['lumax_enabled']:
-            return False
+            return None
+        if renderer is not None:
+            return await self.streamer_overlay.deliver(event, renderer)
         state = self.hass.states.get(self.entity_id)
         if state is None or state.state in ('off', 'unavailable', 'unknown'):
-            return False
-        return await self.streamer_overlay.show(state.attributes.get('source'), config, event)
-    async def select_input(self,input_id,watch=True):await self.command({'luma':'input','input':str(input_id),'watch':watch})
+            return None
+        port = active_streamer_input(state.state, await self.overlay_attributes(state), config)
+        if port is None:
+            return None
+        return await self.streamer_overlay.deliver(event, input_port=port)
+
+    async def route_voice_from_streamer(self, event, renderer):
+        config = self.config
+        if self.streamer_only or not config['lumax_enabled']:
+            return None
+        if renderer is None:
+            state = self.hass.states.get(self.entity_id)
+            if state is None or state.state in ('off', 'unavailable', 'unknown'):
+                return None
+            if active_streamer_input(state.state, await self.overlay_attributes(state), config) is not None:
+                return None
+        elif renderer != 'webos':
+            return None
+        await self.command({'voice': {
+            'phase': event['phase'], 'message': event['message'], 'transcript': event['transcript'],
+            'audioPath': event['audio_path'], 'forwarded': True,
+        }}, overlay=True)
+        return 'webos'
+    async def select_input(self, input_id, watch=True):
+        transition = (f'com.webos.app.hdmi{input_id}', self.hass.loop.time() + 1.8)
+        if watch:
+            self.input_transition = transition
+        try:
+            if watch:
+                await self.command({}, app=transition[0])
+            else:
+                await self.command({'luma': 'input', 'input': str(input_id), 'watch': watch})
+        except (HomeAssistantError, asyncio.CancelledError):
+            if self.input_transition is transition:
+                self.input_transition = (None, 0)
+            raise
     async def camera(self,camera,seconds=15,position='top-right',size=25,mode='mjpeg',title=''):
         if not camera.startswith('camera.') or not self.hass.states.get(camera):raise HomeAssistantError('Choose an existing camera entity.')
-        await self.command({'camera':camera,'timeout':seconds,'position':position,'size':size,'mode':mode,'title':title},overlay=True)
+        payload = {'camera': camera, 'timeout': seconds, 'position': position, 'size': size, 'mode': mode, 'title': title}
+        if not await self.show_streamer_overlay({'kind': 'camera', **payload}):
+            await self.command(payload, overlay=True)
+    async def dismiss(self):
+        if not await self.show_streamer_overlay({'kind': 'dismiss'}):
+            await self.command({'close': True}, overlay=True)
     async def notify(self,message,title='',seconds=None,image=''):
         duration = seconds or self.config['notification_seconds']
         if not image and await self.show_streamer_overlay({'kind': 'notification', 'message': message, 'title': title, 'seconds': duration}):
@@ -114,6 +248,8 @@ class LumaTV:
         if state!='playing':pending.set_result(state)
         return True
     async def launch_app(self,app):
+        if self.streamer_only:
+            raise HomeAssistantError('Use Android TV Remote to launch Streamer apps from Home Assistant.')
         cfg=self.config
         if app in ('smarttube','jellyfin'):
             if app=='jellyfin':
@@ -130,10 +266,36 @@ class LumaTV:
         self.last_seen=datetime.now(timezone.utc)
         safe_keys=('version','home_button','microphone','voice_phase','voice_error','audio_state','setup_complete','capabilities')
         self.status.update({k:data[k] for k in safe_keys if k in data})
-        if isinstance(data.get('catalog'),list):self.catalog=[{k:x[k] for k in ('id','title','visible') if k in x} for x in data['catalog'][:200] if isinstance(x,dict) and isinstance(x.get('id'),str)]
-        self.publish()
-        if 'catalog' in data:self.config_changed()
+        changed = False
+        if isinstance(data.get('catalog'), list):
+            catalog = catalog_entries(data['catalog'])
+            if not self.catalog_ready or catalog != self.catalog:
+                self.catalog = catalog
+                self.catalog_ready = True
+                changed = True
+                if self.catalog_store:
+                    self.catalog_store.async_delay_save(lambda: {'catalog': self.catalog}, 2)
+        artwork = data.get('catalog_artwork')
+        if isinstance(artwork, dict):
+            sanitized = {}
+            total = 0
+            for app in self.catalog:
+                icon = artwork.get(app['id'])
+                if not isinstance(icon, str) or not icon.startswith('data:image/png;base64,') or len(icon) > 54000:
+                    continue
+                total += len(icon)
+                if total > 700000:
+                    break
+                sanitized[app['id']] = icon
+            if sanitized != self.catalog_artwork or not self.artwork_version:
+                self.catalog_artwork = sanitized
+                self.artwork_version = artwork_revision(sanitized)
+                changed = True
+        if changed:self.config_changed()
+        else:self.publish()
     def start(self):
         @callback
-        def changed(event):self.publish()
+        def changed(event):
+            self.publish()
+            self.reconcile_quick_panel()
         return async_track_state_change_event(self.hass,[self.entity_id],changed)

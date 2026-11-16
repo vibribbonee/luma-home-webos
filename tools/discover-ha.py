@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 """Resolve the paired HA through Bonjour without starting the TV's Node runtime.
 
 Only --connection returns credentials, to the existing authorized app bridge.

@@ -25,6 +25,26 @@ Put your apps, HDMI inputs, and Home Assistant controls on one screen on a roote
 
 Tested on LG UP78 (43UP78006LB), webOS 6.3.2-425.
 
+## LumaX on a Streamer
+
+The Streamer setup works with an Android TV or Google TV device connected to any HDMI display.
+
+1. Add the Streamer to Home Assistant using **Android TV Remote**.
+2. In **Settings → Devices & services → Add integration → Luma Home**, choose **Android TV or Google TV Streamer**. Select its remote entity, then choose the Home Assistant area for Assist.
+3. In **LumaX settings**, connect to Home Assistant and choose the room under **Luma Home room**. Enable **Home button shortcuts** to show Room controls while another Streamer app is playing.
+4. Select **Default assistant and mic button** in LumaX settings to use the Google remote for Assist.
+
+Camera previews and text notifications appear in the Streamer’s video output. HDMI switching for other inputs uses the display’s own controls.
+
+### Pair the Streamer with an LG TV
+
+1. Open **Luma Home → Configure** in Home Assistant for the LG. Select the Streamer’s remote and HDMI port, then enable **LumaX Home routing**.
+2. In the Streamer’s **LumaX settings → Luma Home room**, choose the LG’s room. On the LG, enable **Home button shortcut** and **Home Assistant microphone** under **System & voice**.
+
+Tap Home to open the Streamer. Hold Home for Room controls on the active input. Swap the shortcuts for both remotes in **LumaX settings**. Assist and HA camera alerts also follow the active input. Use **LumaX settings → LG idle and no signal** to manage the LG’s idle clock and no-signal options.
+
+To hide a tile on the Streamer, hold OK and select **Hide app**. Restore it under **LumaX settings → Hidden apps**. On the LG, use **Settings → Apps**.
+
 ## Use it with Home Assistant
 
 - **Voice** — Turn on **Home Assistant microphone** in **System & voice** and choose an Assist pipeline on the Luma Home device page.

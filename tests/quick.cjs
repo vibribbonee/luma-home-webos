@@ -19,6 +19,9 @@ const path=require('path'),assert=require('assert');
  await page.locator('#quickPanel').waitFor({state:'visible'});
  assert.equal(await page.locator('#quickPanel').count(),1);
  assert.equal(await page.locator('#camera').isVisible(),false);
+ await page.evaluate(()=>window.dispatchEvent(new Event('blur')));
+ await page.locator('#quickPanel').waitFor({state:'hidden'});
+ assert.equal(await page.evaluate(()=>window.mockHidden),true,'a native menu can take focus immediately');
  assert.deepStrictEqual(errors,[]);
  console.log('Passed: remote OK launches a source, native hide retains the panel, warm relaunch reuses the existing panel, camera mode does not intercept quick-panel keys.');
  }finally{await browser.close();}

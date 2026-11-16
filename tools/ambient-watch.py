@@ -56,14 +56,30 @@ class Handoff:
         self.active={'target':target,'context':video['context']};self.persist()
         if launch({'luma':'no_signal','input':target[-1]}).get('returnValue'):status({'phase':'no-signal-dashboard','input':target[-1]})
         else:self.cancel()
+def protected_hdmi(apps,cfg):
+    """Leave the other HDMI input to its own device while LumaX is paired."""
+    if not cfg.get('lumax_enabled') or os.path.exists(ROOT+'/lumax.suspended'):
+        return None
+    streamer='com.webos.app.hdmi'+str(cfg.get('lumax_input',1))
+    return next((app for app in apps if app in ('com.webos.app.hdmi1','com.webos.app.hdmi2') and app!=streamer),None)
+
 def main():
-    handoff=Handoff();last_saver=0
+    handoff=Handoff();last_saver=0;last_protected=None
     while True:
         time.sleep(2)
         try:
             cfg=json.load(open(ROOT+'/runtime.json'))
-            if not cfg.get('no_signal') and not cfg.get('screensaver'):continue
+            if not cfg.get('no_signal') and not cfg.get('screensaver'):
+                if handoff.active:handoff.cancel()
+                last_protected=None
+                continue
             apps=[w.get('appId') for w in luna('com.webos.surfacemanager/getForegroundWindowInfo',{}).get('windows',[])]
+            protected=protected_hdmi(apps,cfg)
+            if protected or 'com.webos.app.screensaver' not in apps:
+                last_protected=protected
+            if protected or (last_protected and 'com.webos.app.screensaver' in apps):
+                if handoff.active or handoff.bad_since is not None:handoff.cancel()
+                continue
             if cfg.get('screensaver') and 'com.webos.app.screensaver' in apps and time.time()-last_saver>30:
                 last_saver=time.time();luna('com.webos.surfacemanager/closeByAppId',{'id':'com.webos.app.screensaver'});launch({'luma':'idle'});status({'phase':'screensaver-dashboard'});continue
             if cfg.get('no_signal'):handoff.tick(apps,luna('com.webos.service.videooutput/getStatus',{}),time.time())

@@ -9,8 +9,8 @@ restore_legacy(){
  rm -f "$ROOT/home-bypass"
 }
 case "${1:-status}" in
- enable) /usr/bin/python "$ROOT/home-keyfilter.py" enable >/dev/null;restore_legacy ;;
- disable) /usr/bin/python "$ROOT/home-keyfilter.py" disable >/dev/null 2>&1 || true;restore_legacy ;;
+ enable) restore_legacy;/usr/bin/python "$ROOT/home-keyfilter.py" enable >/dev/null;touch "$ROOT/home-hook.active" ;;
+ disable) rm -f "$ROOT/home-hook.active";restore_legacy;/usr/bin/python "$ROOT/home-keyfilter.py" disable >/dev/null ;;
  status) /usr/bin/python "$ROOT/home-keyfilter.py" status ;;
  stock) /usr/bin/luna-send -w 1500 -n 1 -f luna://com.webos.applicationManager/launch '{"id":"com.webos.app.home"}' ;;
  *) exit 2 ;;

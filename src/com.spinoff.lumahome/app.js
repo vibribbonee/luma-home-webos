@@ -2,13 +2,14 @@
  'use strict';
  var BACKDROPS=['Twilight','Forest','Coast','Dunes','Alpine','Midnight','Aurora','Ember','Slate','Clear'];
  var $=function(id){return document.getElementById(id);};
- var boot=window.LUMA_BOOTSTRAP, catalog=boot.catalog.slice(),states={},selectedInput='1',settingsTab='pins',lastActivity=Date.now(),previewTimer=0,hoverPreviewTimer=0,toastTimer=0,pending=false;
- var H=boot.helpers, listSignature='',controlsSignature='',previewEnabled=true,previewActive=false,handoff=false,heroApp=null;
+ var boot=window.LUMA_BOOTSTRAP, catalog=boot.catalog.slice(),states={},selectedInput='1',settingsTab='pins',lastActivity=Date.now(),previewTimer=0,toastTimer=0,pending=false;
+ var H=boot.helpers, controlsSignature='',launcherSignature='',catalogRevision=0,previewEnabled=true,previewActive=false,handoff=false;
+ var catalogArtwork, reportedSocket;
  var autoDashboard=false,lastClockKey='';
  try{selectedInput=localStorage.getItem('luma-last-input')==='2'?'2':'1';}catch(_){}
  var cached={};try{cached=JSON.parse(localStorage.getItem('luma-settings')||'{}');}catch(_){}
  var ha=new Luma.HA(null,changed,function(message){$('haStatus').textContent=message;}),lastBackground=null,lastSaved='';
- ha.watchFn=function(s){var ids=[],x=function(k){var v=s[H[k]];return v&&v.state;};Luma.fit(Luma.list(x('controls')||'[]'),x('tilesize'),Luma.parseMap(x('tiles')),x('columns')).forEach(function(i){ids.push(i);});['temperature','humidity'].forEach(function(k){var v=x(k);if(v)ids.push(v);});return ids;};
+ ha.watchFn=function(s){var ids=[],x=function(k){var v=s[H[k]];return v&&v.state;};Luma.fit(Luma.list(x('controls')||'[]'),x('tilesize'),Luma.parseMap(x('tiles')),x('columns')).forEach(function(i){ids.push(i);});['temperature','humidity','co2'].forEach(function(k){var v=x(k);if(v)ids.push(v);});return ids;};
  function activate(){try{var system=window.PalmSystem||window.webOSSystem;if(system&&typeof system.activate==='function')system.activate();}catch(_){}}
  function delay(ms){return new Promise(function(resolve){setTimeout(resolve,ms);});}
  catalog.push({id:'luma:app/smarttube',title:'SmartTube',icon:'',visible:true,system:false},{id:'luma:app/jellyfin',title:'Jellyfin (Google TV)',icon:'',visible:true,system:false});
@@ -25,37 +26,91 @@
  function clock(){var saved={};try{saved=JSON.parse(localStorage.getItem('luma-clock')||'{}');}catch(_){}var zone=ha.timeZone||saved.zone,offset=ha.clockOffset===undefined?Number(saved.offset)||0:ha.clockOffset,now=new Date(Date.now()+offset),clockKey=Math.floor(now.getTime()/60000)+'|'+(zone||''),timeOptions={hour:'2-digit',minute:'2-digit'},dateOptions={weekday:'long',day:'numeric',month:'long'};if(clockKey===lastClockKey)return;lastClockKey=clockKey;if(zone){timeOptions.timeZone=zone;dateOptions.timeZone=zone;}var time=now.toLocaleTimeString('en-GB',timeOptions),date=now.toLocaleDateString('en-GB',dateOptions);$('clock').textContent=time;$('ambientClock').textContent=time;$('date').textContent=date;$('ambientDate').textContent=date;}
 
  function sensor(entity){var s=states[entity];if(!ha.ready||!s||s.state==='unavailable'||s.state==='unknown')return '—';var n=Number(s.state);return (isFinite(n)?String(Math.round(n*10)/10):s.state)+' '+(s.attributes.unit_of_measurement||'');}
- function launch(id){clearTimeout(hoverPreviewTimer);cancelAuto();
+ function loadArtwork(){
+  return Luma.exec('/usr/bin/python /media/developer/apps/usr/palm/applications/com.spinoff.lumahome/runtime/list-apps.py --artwork').then(function(raw){
+   var icons=JSON.parse(raw);
+   if(!icons||typeof icons!=='object'||Array.isArray(icons))return null;
+   LumaLauncher.setArtwork(icons);
+   return icons;
+  });
+ }
+ function publishCatalog(){
+  var socket=ha.ws;
+  if(!catalogArtwork||!ha.ready||!ha.entryId||socket===reportedSocket)return;
+  reportedSocket=socket;
+  ha.report({catalog:catalog,version:'0.4.21',setup_complete:true}).then(function(){return catalogArtwork;}).then(function(icons){
+   if(ha.ws===socket&&ha.ready&&icons&&Object.keys(icons).length)return ha.report({catalog_artwork:icons});
+  }).catch(function(){if(reportedSocket===socket)reportedSocket=null;});
+ }
+ function roomClimate(){
+  var visible=[];
+  ['temperature','humidity','co2'].forEach(function(key){
+   var display=$(key),reading=sensor(value(key,''));
+   display.parentNode.hidden=reading==='—';
+   if(reading!=='—'){display.textContent=reading;visible.push(reading);}
+  });
+  var show=value('climate','on')==='on';
+  $('climate').hidden=!show||!visible.length;
+  $('ambientClimate').textContent=show?visible.join('  ·  '):'';
+ }
+ function launch(id){cancelAuto();
   if(id==='com.webos.app.home')return Luma.exec('/var/lib/webosbrew/lumahome/home-hook.sh stock').then(function(){Luma.hide();});
   if(id.indexOf('luma:app/')===0)return ha.service('luma_home','launch_app',null,{entry_id:ha.entryId,app:id.slice(9)});
-  var wait=Promise.resolve();if(/^com\.webos\.app\.hdmi[12]$/.test(id)){handoff=true;if(previewActive){stopPreview();wait=delay(350);}}
+  var wait=Promise.resolve();if(/^com\.webos\.app\.hdmi[12]$/.test(id)){handoff=true;selectedInput=id.slice(-1);localStorage.setItem('luma-last-input',selectedInput);if(previewActive){stopPreview();wait=delay(350);}}
   return wait.then(function(){return Luma.prepareInput(id);}).then(function(){return Luma.luna('luna://com.webos.applicationManager/launch',{id:id});}).then(function(){return Luma.restoreInputVideo(id);}).then(function(){Luma.hide();}).catch(function(e){handoff=false;throw e;});
  }
  function preview(input){
-  if(handoff||(!heroApp&&selectedInput===input&&previewActive&&!$('inputVideo').error))return;heroApp=null;document.querySelector('.preview').classList.remove('app-preview');$('appHero').hidden=true;$('inputVideo').hidden=false;document.querySelector('.preview-label').textContent='INPUT PREVIEW';$('watchLabel').textContent='Watch';$('inputDetail').textContent='One selected input at a time';
-  selectedInput=input;try{localStorage.setItem('luma-last-input',input);}catch(_){}$('inputName').textContent=value(input==='1'?'hdmi1':'hdmi2','HDMI '+input);$('previewMessage').textContent=previewEnabled?'Opening HDMI '+input+' preview…':'Preview is off · Watch to open HDMI '+input;$('previewFallback').hidden=false;
-  document.querySelectorAll('[data-input]').forEach(function(b){b.setAttribute('aria-pressed',String(b.dataset.input===input));});
+  if(handoff)return;
+  stopPreview();
+  closeRoomPanel(false);
+  selectedInput=input;
+  localStorage.setItem('luma-last-input',input);
+  $('inputName').textContent=value('hdmi'+input,'HDMI '+input);
+  $('previewMessage').textContent=previewEnabled?'Opening HDMI '+input+' preview…':'Choose Watch to open this input';
+  $('previewFallback').hidden=false;
+  $('inputPreview').hidden=false;
+  $('watchBtn').focus();
   if(document.hidden||!previewEnabled)return;
-  var video=$('inputVideo');clearTimeout(previewTimer);video.pause();video.removeAttribute('src');video.innerHTML='';
-  var source=document.createElement('source');source.type='service/webos-external';source.src='ext://hdmi:'+input;video.appendChild(source);video.load();previewActive=true;
-  var p=video.play();if(p&&p.catch)p.catch(function(){unavailable();});
+  var video=$('inputVideo'),source=document.createElement('source');
+  source.type='service/webos-external';source.src='ext://hdmi:'+input;video.appendChild(source);
+  video.load();previewActive=true;
+  var playback=video.play();if(playback&&playback.catch)playback.catch(unavailable);
   previewTimer=setTimeout(unavailable,8000);
  }
- function queuePreview(input){clearTimeout(hoverPreviewTimer);hoverPreviewTimer=setTimeout(function(){if(!document.hidden&&$('settings').hidden&&$('ambient').hidden)preview(input);},180);}
- function showApp(id){clearTimeout(hoverPreviewTimer);if(heroApp===id)return;var a=app(id);heroApp=id;stopPreview();$('inputVideo').hidden=true;document.querySelector('.preview').classList.add('app-preview');document.querySelector('.preview-label').textContent=id.indexOf('luma:app/')===0?'GOOGLE TV STREAMER':'APP';$('appHero').innerHTML='';$('appHero').appendChild(LumaIcons.tile(id,a.icon));$('appHero').hidden=false;$('inputName').textContent=a.title;$('inputDetail').textContent=id.indexOf('luma:app/')===0?'Bedroom TV · HDMI 1':'Installed on this TV';$('watchLabel').textContent='Open';$('previewMessage').textContent='';$('previewFallback').hidden=false;}
- function unavailable(){if(heroApp)return;if(!$('previewFallback').hidden)$('previewMessage').textContent='Preview unavailable · choose Watch to open this input';}
- $('inputVideo').addEventListener('playing',function(){if(heroApp)return;clearTimeout(previewTimer);$('previewFallback').hidden=true;});
+ function unavailable(){if(!$('inputPreview').hidden&&!$('previewFallback').hidden)$('previewMessage').textContent='Preview unavailable · choose Watch to open this input';}
+ $('inputVideo').addEventListener('playing',function(){if(!previewActive)return;clearTimeout(previewTimer);$('previewFallback').hidden=true;});
  $('inputVideo').addEventListener('error',unavailable);
- function stopPreview(){clearTimeout(hoverPreviewTimer);if(!previewActive)return;var v=$('inputVideo');v.pause();v.removeAttribute('src');v.innerHTML='';v.load();previewActive=false;clearTimeout(previewTimer);$('previewFallback').hidden=false;}
+ function stopPreview(){
+  $('inputPreview').hidden=true;
+  if(!previewActive)return;
+  previewActive=false;clearTimeout(previewTimer);
+  var video=$('inputVideo');video.pause();video.removeAttribute('src');video.innerHTML='';video.load();
+ }
+ function readHiddenApps() {
+  try { return Luma.list(localStorage.getItem('luma-hidden-apps') || '[]'); }
+  catch (_) { return []; }
+ }
+ var hiddenApps = readHiddenApps();
+ function setAppHidden(id, hidden) {
+  var next = hiddenApps.filter(function (appId) { return id !== appId; });
+  if (hidden) next.push(id);
+  try { localStorage.setItem('luma-hidden-apps', JSON.stringify(next)); }
+  catch (_) { say('Could not save app visibility.'); return; }
+  hiddenApps = next;
+  renderApps();
+  renderSettings();
+ }
  function renderApps(){
-  var signature=JSON.stringify([pins(),value('hdmi1','HDMI 1'),value('hdmi2','HDMI 2')]);if(signature===listSignature)return;listSignature=signature;
-  var old=document.activeElement&&document.activeElement.dataset.appid,root=$('apps'),scroll=root.scrollLeft,bookmark=LumaNav.bookmark(root);root.innerHTML='';
-  ['1','2'].forEach(function(input){var b=node('button','app');b.dataset.input=input;b.setAttribute('aria-pressed',String(input===selectedInput));var sourceTile=node('span','icon-wrap source-tile');sourceTile.appendChild(LumaIcons.icon('monitor'));sourceTile.appendChild(node('span','source-number',input));b.appendChild(sourceTile);b.appendChild(node('span','label',value(input==='1'?'hdmi1':'hdmi2','HDMI '+input)));b.onfocus=b.onmouseenter=function(){if(selectedInput!==input||!previewActive)queuePreview(input);};b.onblur=b.onmouseleave=function(){clearTimeout(hoverPreviewTimer);};b.onclick=function(){launch('com.webos.app.hdmi'+input).catch(err);};root.appendChild(b);});
-  pins().forEach(function(id){var a=app(id),b=node('button','app');b.dataset.appid=id;b.appendChild(LumaIcons.tile(id,a.icon));b.appendChild(node('span','label',a.title));b.onfocus=b.onmouseenter=function(){showApp(id);};b.onclick=function(){launch(id).catch(err);};root.appendChild(b);});
-  var all=node('button','app');var allTile=node('span','icon-wrap');allTile.appendChild(LumaIcons.icon('layout-grid'));all.appendChild(allTile);all.appendChild(node('span','label','All apps'));all.onclick=function(){openSettings('pins');};root.appendChild(all);
-  root.scrollLeft=scroll;
-  LumaNav.restore(root,bookmark);
-  if(old&&!bookmark){var candidate=Array.from(root.querySelectorAll('[data-appid]')).filter(function(x){return x.dataset.appid===old;})[0];if(candidate)candidate.focus();}
+  var key=JSON.stringify([catalogRevision,pins(),hiddenApps,value('hdmi1','HDMI 1'),value('hdmi2','HDMI 2')]);
+  if(key===launcherSignature)return;
+  launcherSignature=key;
+  var entries=['1','2'].map(function(input){return {id:'com.webos.app.hdmi'+input,input:input,title:value('hdmi'+input,'HDMI '+input)};});
+  var included={'com.webos.app.hdmi1':true,'com.webos.app.hdmi2':true,'com.spinoff.lumahome':true};
+  catalog.forEach(function(item){
+   if(item.visible===false||included[item.id]||hiddenApps.indexOf(item.id)>=0)return;
+   included[item.id]=true;entries.push({id:item.id,title:item.title,icon:item.icon});
+  });
+  LumaLauncher.render(entries,pins(),function(id){launch(id).catch(err);});
  }
  function controlAction(id){var domain=id.split('.')[0],s=states[id];if(!ha.ready||!s||s.state==='unavailable'||s.state==='unknown'){say('This entity is unavailable.');return;}var service=['light','switch','input_boolean','fan'].indexOf(domain)>=0?(s.state==='on'?'turn_off':'turn_on'):domain==='scene'?'turn_on':domain==='script'?'turn_on':domain==='button'||domain==='input_button'?'press':null;if(service)ha.service(domain,service,id).catch(err);else say(name(id)+': '+sensor(id));}
  function dimmable(id){var s=states[id];return id.indexOf('light.')===0&&s&&(s.attributes.supported_color_modes||[]).some(function(m){return m!=='onoff';});}
@@ -68,7 +123,7 @@
   document.querySelectorAll('#controls [data-entity]').forEach(function(b){var s=states[b.dataset.entity],live=ha.ready&&s&&s.state!=='unavailable'&&s.state!=='unknown';b.setAttribute('aria-pressed',String(!!live&&s.state==='on'));b.querySelector('.name').textContent=name(b.dataset.entity);var held=dimHold[b.dataset.entity]&&Date.now()<dimHold[b.dataset.entity].until,pct=held?dimHold[b.dataset.entity].pct:(live&&s.state==='on'?level(s):0);if(b.dataset.dim){b.querySelector('.fill').style.width=pct+'%';b.querySelector('.fill').style.opacity=pct>0?'1':'0';if(held)b.setAttribute('aria-pressed',String(pct>0));}b.querySelector('.state').textContent=live?(s.state==='on'||(held&&pct>0)?(b.dataset.dim?pct+'%':'On'):s.state==='off'?'Off':sensor(b.dataset.entity)):'Unavailable';});
   LumaNav.restore($('controls'),focusMark);
  }
- function changed(next){states=next;Object.keys(H).forEach(function(k){if(states[H[k]])cached[k]=states[H[k]].state;});var saved=JSON.stringify(cached);if(saved!==lastSaved){lastSaved=saved;try{localStorage.setItem('luma-settings',saved);}catch(_){}}$('roomName').textContent=value('room','Home');document.body.dataset.theme=value('theme','Twilight');var palette=value('palette','');document.documentElement.style.setProperty('--wallpaper-accent',/^[0-9, ]+$/.test(palette)?palette:'110,145,186');var bg=value('background','').trim();var imageUrl=bg.charAt(0)==='/'&&ha.current?ha.current.url+bg:/^https?:\/\//i.test(bg)?bg:'';if(imageUrl!==lastBackground){lastBackground=imageUrl;document.querySelector('.backdrop').style.backgroundImage=imageUrl?'url('+JSON.stringify(imageUrl)+')':'';document.body.classList.toggle('custom-background',!!imageUrl);}$('climate').hidden=value('climate','on')!=='on';$('temperature').textContent=sensor(value('temperature',''));$('humidity').textContent=sensor(value('humidity',''));$('ambientClimate').textContent=$('temperature').textContent+'  ·  '+$('humidity').textContent;if(!heroApp)$('inputName').textContent=value(selectedInput==='1'?'hdmi1':'hdmi2','HDMI '+selectedInput);renderApps();renderControls();}
+ function changed(next){states=next;Object.keys(H).forEach(function(k){if(states[H[k]])cached[k]=states[H[k]].state;});var saved=JSON.stringify(cached);if(saved!==lastSaved){lastSaved=saved;try{localStorage.setItem('luma-settings',saved);}catch(_){}}$('roomName').textContent=value('room','Home');document.body.dataset.theme=value('theme','Twilight');var palette=value('palette','');document.documentElement.style.setProperty('--wallpaper-accent',/^[0-9, ]+$/.test(palette)?palette:'110,145,186');var bg=value('background','').trim();var imageUrl=bg.charAt(0)==='/'&&ha.current?ha.current.url+bg:/^https?:\/\//i.test(bg)?bg:'';if(imageUrl!==lastBackground){lastBackground=imageUrl;document.querySelector('.backdrop').style.backgroundImage=imageUrl?'url('+JSON.stringify(imageUrl)+')':'';document.body.classList.toggle('custom-background',!!imageUrl);}roomClimate();$('inputName').textContent=value('hdmi'+selectedInput,'HDMI '+selectedInput);renderApps();renderControls();publishCatalog();}
  function pin(id){var next=pins().slice(),at=next.indexOf(id);if(at<0)next.push(id);else next.splice(at,1);return saveItems('pins',next).then(function(){return refreshStates();});}
  function refreshStates(all){var request=all===true?ha.call({type:'get_states'}).then(function(a){a.forEach(function(s){ha.states[s.entity_id]=s;});ha.applyConfig({entry_id:ha.entryId,tv_id:ha.tvId,settings:ha.config,catalog:ha.catalog});}):ha.refreshScoped();return request.then(function(){if(!$('settings').hidden&&!(document.activeElement&&document.activeElement.dataset.edit==='1'))renderSettings();});}
  function row(label,field){var r=node('label','field');r.appendChild(node('span','',label));r.appendChild(field);return r;}
@@ -78,12 +133,49 @@
  function renderSettings(){
   var root=$('settingsContent'),bookmark=LumaNav.bookmark(root);root.innerHTML='';$('settingsError').textContent='';document.querySelectorAll('[data-tab]').forEach(function(b){b.classList.toggle('active',b.dataset.tab===settingsTab);});
   if(settingsTab==='pins'){
-   var rows=node('div','rows');var chosen=pins();var ordered=catalog.filter(function(a){return a.visible&&a.id!=='com.spinoff.lumahome'&&a.id!=='amazon.alexa.view'&&a.id!=='google.assistant.promo';}).sort(function(a,b){var aa=chosen.indexOf(a.id),bb=chosen.indexOf(b.id);return aa>=0&&bb>=0?aa-bb:aa>=0?-1:bb>=0?1:a.title.localeCompare(b.title);});
-   ordered.forEach(function(a){var r=node('div','pin-row'),pinned=chosen.indexOf(a.id)>=0;var title=node('button','title',a.title);title.onclick=function(){launch(a.id).catch(err);};r.appendChild(title);if(pinned){var left=node('button');left.appendChild(LumaIcons.icon('arrow-left'));left.setAttribute('aria-label','Move '+a.title+' earlier');left.disabled=chosen.indexOf(a.id)===0;left.onclick=function(){var current=pins().slice(),i=current.indexOf(a.id);if(i>0){current.splice(i,1);current.splice(i-1,0,a.id);saveItems('pins',current).then(refreshStates).catch(err);}};r.appendChild(left);}var toggle=node('button','pin',pinned?'Unpin':'Pin');toggle.setAttribute('aria-pressed',String(pinned));toggle.onclick=function(){pin(a.id).catch(err);};r.appendChild(toggle);rows.appendChild(r);});root.appendChild(rows);
+   var rows=node('div','rows');var chosen=pins();var candidates=catalog.filter(function(item){return !/^com\.webos\.app\.hdmi[12]$/.test(item.id);}).concat(['1','2'].map(function(input){return {id:'com.webos.app.hdmi'+input,title:value('hdmi'+input,'HDMI '+input),visible:true};}));var ordered=candidates.filter(function(a){return a.visible&&a.id!=='com.spinoff.lumahome'&&a.id!=='amazon.alexa.view'&&a.id!=='google.assistant.promo';}).sort(function(a,b){var aa=chosen.indexOf(a.id),bb=chosen.indexOf(b.id);return aa>=0&&bb>=0?aa-bb:aa>=0?-1:bb>=0?1:a.title.localeCompare(b.title);});
+   ordered.forEach(function (a) {
+    var r = node('div', 'pin-row');
+    var pinned = chosen.indexOf(a.id) >= 0;
+    var hidden = hiddenApps.indexOf(a.id) >= 0;
+    var input = /^com\.webos\.app\.hdmi[12]$/.test(a.id);
+    var title = node(hidden ? 'span' : 'button', 'title', a.title);
+    if (!hidden) title.onclick = function () { launch(a.id).catch(err); };
+    r.appendChild(title);
+    if (!hidden && pinned) {
+     var left = node('button');
+     left.appendChild(LumaIcons.icon('arrow-left'));
+     left.setAttribute('aria-label', 'Move ' + a.title + ' earlier');
+     left.disabled = chosen.indexOf(a.id) === 0;
+     left.onclick = function () {
+      var current = pins().slice(), i = current.indexOf(a.id);
+      if (i <= 0) return;
+      current.splice(i, 1);
+      current.splice(i - 1, 0, a.id);
+      saveItems('pins', current).then(refreshStates).catch(err);
+     };
+     r.appendChild(left);
+    }
+    if (!hidden) {
+     var pinButton = node('button', 'pin', pinned ? 'Unpin' : 'Pin');
+     pinButton.setAttribute('aria-pressed', String(pinned));
+     pinButton.onclick = function () { pin(a.id).catch(err); };
+     r.appendChild(pinButton);
+    }
+    if (!input) {
+     var visibility = node('button', '', hidden ? 'Show' : 'Hide');
+     visibility.setAttribute('aria-label', (hidden ? 'Show ' : 'Hide ') + a.title);
+     visibility.onclick = function () { setAppHidden(a.id, !hidden); };
+     r.appendChild(visibility);
+    }
+    rows.appendChild(r);
+   });
+   root.appendChild(rows);
   }else if(settingsTab==='widgets'){
    root.appendChild(textField('room','Room name'));
    root.appendChild(row('Temperature sensor',selection('temperature',entityOptions(function(id,s){return id.indexOf('sensor.')===0&&s.attributes.device_class==='temperature';}))));
    root.appendChild(row('Humidity sensor',selection('humidity',entityOptions(function(id,s){return id.indexOf('sensor.')===0&&s.attributes.device_class==='humidity';}))));
+   root.appendChild(row('Carbon dioxide sensor',selection('co2',entityOptions(function(id,s){return id.indexOf('sensor.')===0&&s.attributes.device_class==='carbon_dioxide';}))));
    var ids=items('controls',[]);ids.forEach(function(id){var remove=node('button','','Remove');remove.onclick=function(){saveItems('controls',items('controls',[]).filter(function(x){return x!==id;})).then(refreshStates).catch(err);};
     var sizeSelect=node('select');[['','Default size'],['Small','Small'],['Compact','Compact'],['Standard','Standard'],['Large','Large']].forEach(function(o){var op=node('option','',o[1]);op.value=o[0];sizeSelect.appendChild(op);});sizeSelect.value=Luma.parseMap(value('tiles','{}'))[id]||'';
     sizeSelect.dataset.tileEntity=id;sizeSelect.onchange=function(){var size=sizeSelect.value;sizeSelect.disabled=true;ha.setConfig(function(config){var m=Object.assign({},config.tiles||{});if(size)m[id]=size;else delete m[id];return {tiles:m};}).then(function(){sizeSelect.disabled=false;say('Tile size saved');},function(e){sizeSelect.disabled=false;err(e);});};
@@ -99,10 +191,11 @@
    var previewToggle=node('button','',previewEnabled?'Enabled':'Disabled');previewToggle.onclick=function(){previewEnabled=!previewEnabled;localStorage.setItem('luma-preview',previewEnabled?'on':'off');if(previewEnabled)preview(selectedInput);else{stopPreview();$('previewMessage').textContent='Preview is off · Watch to open HDMI '+selectedInput;}renderSettings();};root.appendChild(row('HDMI preview on this TV',previewToggle));
   }else if(settingsTab==='system'){
    root.appendChild(node('p','','Voice capture starts while Home Assistant connects. Hold mode stops on release; silence cutoff applies to Tap mode.'));
-   var swap=node('button','',value('home_swap','off')==='on'?'Tap full Home · Hold quick panel':'Tap quick panel · Hold full Home');swap.onclick=function(){save('home_swap',value('home_swap','off')!=='on').then(renderSettings).catch(err);};root.appendChild(row('Swap Home tap and hold',swap));
+   var swap=node('button','',value('home_swap','on')==='on'?'Tap full Home · Hold quick panel':'Tap quick panel · Hold full Home');swap.onclick=function(){save('home_swap',value('home_swap','on')!=='on').then(renderSettings).catch(err);};root.appendChild(row('Swap Home tap and hold',swap));
    root.appendChild(row('Mic button',selection('voice_mode',[{value:'hold',label:'Hold to speak'},{value:'tap',label:'Tap to speak'}])));
    [['voice_listen_seconds','Maximum listening time',3,30,1],['voice_start_seconds','Wait for speech',3,20,1],['voice_silence_seconds','Tap mode silence cutoff',.5,5,.1]].forEach(function(spec){var input=node('input');input.type='range';input.min=spec[2];input.max=spec[3];input.step=spec[4];input.value=value(spec[0],spec[2]);var text=node('span','',input.value+' s');var group=node('div','timing');group.appendChild(input);group.appendChild(text);input.oninput=function(){text.textContent=input.value+' s';};input.onchange=function(){save(spec[0],Number(input.value)).catch(err);};root.appendChild(row(spec[1],group));});
    [['home_button','Home button shortcut'],['microphone','Home Assistant microphone'],['voice_reply','Spoken responses'],['no_signal','Show Home when HDMI has no signal'],['screensaver','Replace the idle screensaver with the clock']].forEach(function(spec){var toggle=node('button','',value(spec[0],'off')==='on'?'On':'Off');toggle.onclick=function(){save(spec[0],value(spec[0],'off')!=='on').then(function(){renderSettings();}).catch(err);};root.appendChild(row(spec[1],toggle));});
+   var idleNow=node('button','','Show idle clock');idleNow.onclick=function(){$('settings').hidden=true;ambient();};root.appendChild(row('Idle screen',idleNow));
    var recovery=node('button','','Checking…');
    var suspendFile='/var/lib/webosbrew/lumahome/lumax.suspended';
    function showRecovery(state){var paused=state.trim()==='paused';recovery.textContent=paused?'Resume LumaX Home routing':'Use local LG launcher';recovery.onclick=function(){Luma.exec(paused?'rm -f '+suspendFile:'touch '+suspendFile).then(function(){showRecovery(paused?'enabled':'paused');}).catch(err);};}
@@ -114,24 +207,37 @@
   }
   LumaNav.restore(root,bookmark);
  }
- function openSettings(tab){cancelAuto();settingsTab=tab||'pins';refreshStates(settingsTab==='widgets').catch(function(){});$('settings').hidden=false;renderSettings();$('closeSettings').focus();}
- $('settingsBtn').onclick=function(){openSettings();};$('editPinsBtn').onclick=function(){openSettings('pins');};$('closeSettings').onclick=function(){$('settings').hidden=true;$('settingsBtn').focus();};document.querySelectorAll('[data-tab]').forEach(function(b){b.onclick=function(){settingsTab=b.dataset.tab;renderSettings();b.focus();if(settingsTab==='widgets')refreshStates(true).catch(function(){});};});
- $('watchBtn').onclick=function(){launch(heroApp||'com.webos.app.hdmi'+selectedInput).catch(err);};
- function wake(){$('ambient').hidden=true;lastActivity=Date.now();if(!previewActive)preview(selectedInput);$('settingsBtn').focus();}
- function ambient(){stopPreview();$('ambient').hidden=false;$('wakeBtn').focus();}
- $('idleBtn').onclick=ambient;$('wakeBtn').onclick=wake;
+ function openRoomPanel(){
+  stopPreview();
+  $('roomPanel').hidden=false;
+  document.body.classList.add('lumax-room-open');
+  $('closeRoomPanel').focus();
+ }
+ function closeRoomPanel(restore){
+  $('roomPanel').hidden=true;
+  document.body.classList.remove('lumax-room-open');
+  if(restore)$('lumaxControls').focus();
+ }
+ $('lumaxControls').onclick=openRoomPanel;
+ $('closeRoomPanel').onclick=function(){closeRoomPanel(true);};
+ function openSettings(tab){cancelAuto();closeRoomPanel(false);stopPreview();settingsTab=tab||'pins';refreshStates(settingsTab==='widgets').catch(function(){});$('settings').hidden=false;renderSettings();$('closeSettings').focus();}
+ $('settingsBtn').onclick=function(){openSettings();};$('closeSettings').onclick=function(){$('settings').hidden=true;$('settingsBtn').focus();};document.querySelectorAll('[data-tab]').forEach(function(b){b.onclick=function(){settingsTab=b.dataset.tab;renderSettings();b.focus();if(settingsTab==='widgets')refreshStates(true).catch(function(){});};});
+ $('watchBtn').onclick=function(){launch('com.webos.app.hdmi'+selectedInput).catch(err);};
+ function focusHome(){if(!LumaLauncher.focusDock())$('settingsBtn').focus();}
+ function wake(){$('ambient').hidden=true;lastActivity=Date.now();focusHome();}
+ function ambient(){closeRoomPanel(false);stopPreview();$('ambient').hidden=false;$('wakeBtn').focus();}
+ $('closePreviewBtn').onclick=function(){stopPreview();focusHome();};$('wakeBtn').onclick=wake;
  function cancelAuto(){if(autoDashboard){autoDashboard=false;Luma.exec('rm -f /var/lib/webosbrew/lumahome/ambient-auto').catch(function(){});}}
  function activity(){lastActivity=Date.now();}
  ['pointermove','mousemove','mousedown','touchstart','keydown'].forEach(function(event){document.addEventListener(event,activity);});
- LumaAppRail.attach($('appRail'),$('apps'),function(){return !document.hidden&&$('settings').hidden&&$('ambient').hidden;});
  document.addEventListener('keydown',function(e){
   var key=e.keyCode;if(!$('ambient').hidden){if(key!==13){e.preventDefault();wake();}return;}
-  var scope=$('lightDetails')||(!$('settings').hidden?$('settings'):$('home'));
+  var scope=$('lightDetails')||(!$('settings').hidden?$('settings'):!$('roomPanel').hidden?$('roomPanel'):!$('inputPreview').hidden?$('inputPreview'):$('home'));
+  if(scope===$('home')&&LumaLauncher.handle(e))return;
   if(LumaNav.handle(e,scope))return;
-  if(key===461||key===27){e.preventDefault();if(!$('settings').hidden){$('settings').hidden=true;$('settingsBtn').focus();}else launch('com.webos.app.hdmi'+selectedInput).catch(err);}
+  if(key===461||key===27){e.preventDefault();if(!$('settings').hidden){$('settings').hidden=true;$('settingsBtn').focus();}else if(!$('roomPanel').hidden)closeRoomPanel(true);else if(!$('inputPreview').hidden){stopPreview();focusHome();}else launch('com.webos.app.hdmi'+selectedInput).catch(err);}
  });
- document.addEventListener('focusin',function(e){var card=e.target.closest&&e.target.closest('[data-nav-card]');$('navHint').textContent=card?(card===e.target?(card.dataset.dim?'OK to adjust · Arrows to move':'OK to toggle · Arrows to move'):'Left/right to adjust · Back to return to tile'):'Arrows to move · OK to select · Back to return';});
- document.addEventListener('visibilitychange',function(){if(document.hidden)stopPreview();else{lastActivity=Date.now();if(!ha.ready)ha.connect();if($('settings').hidden&&$('ambient').hidden)setTimeout(function(){if(!document.hidden&&!autoDashboard&&!heroApp)preview(selectedInput);},150);}});
+ document.addEventListener('visibilitychange',function(){if(document.hidden)stopPreview();else{lastActivity=Date.now();if(!ha.ready)ha.connect();}});
  setInterval(function(){var minutes=Number(value('idle','2'));if(!document.hidden&&$('settings').hidden&&$('ambient').hidden&&minutes>0&&Date.now()-lastActivity>minutes*60000)ambient();},1000);
  function resize(){var scale=Math.min(window.innerWidth/1920,window.innerHeight/1080);$('home').style.transform='scale('+scale+')';}
  function launchParams(event){try{if(event&&event.detail)return typeof event.detail==='string'?JSON.parse(event.detail):event.detail;var p=window.webOSSystem&&window.webOSSystem.launchParams||window.PalmSystem&&window.PalmSystem.launchParams||'{}';return typeof p==='string'?JSON.parse(p||'{}'):p;}catch(_){return {};}}
@@ -140,16 +246,29 @@
   var action=params&&params.luma;if(!action)return false;
   var tab=['pins','widgets','appearance','system'].indexOf(params.tab)>=0?params.tab:'pins',input=String(params.input)==='2'?'2':'1';
   if(action==='settings'){$('ambient').hidden=true;openSettings(tab);}
-  else if(action==='no_signal'){$('settings').hidden=true;$('ambient').hidden=true;autoDashboard=true;selectedInput=input;stopPreview();$('previewMessage').textContent='HDMI '+input+' has no signal. Home stays available while it reconnects.';}
+  else if(action==='no_signal'){$('settings').hidden=true;$('ambient').hidden=true;autoDashboard=true;selectedInput=input;stopPreview();say('HDMI '+input+' has no signal.');focusHome();}
   else if(action==='idle'){$('settings').hidden=true;ambient();}
   else if(action==='input'){$('settings').hidden=true;$('ambient').hidden=true;if(params.watch===true||String(params.watch).toLowerCase()==='true')launch('com.webos.app.hdmi'+input).catch(err);else{selectedInput=input;preview(input);}}
   else if(action==='app'){launch(params.app_id).catch(err);}
   else if(action==='hook'||action==='voice'){var script=action==='hook'?'home-hook.sh':'voice-control.sh',on=String(params.state).toLowerCase()==='on';Luma.exec('/var/lib/webosbrew/lumahome/'+script+' '+(action==='hook'?(on?'enable':'stop'):(on?'enable':'disable'))).then(function(){say((action==='hook'?'Home button handler ':'Remote microphone ')+(on?'enabled':'disabled'));}).catch(err);}
-  else if(action==='home'){cancelAuto();$('settings').hidden=true;$('ambient').hidden=true;if(params.input){selectedInput=input;preview(input);}}
+  else if(action==='home'){cancelAuto();$('settings').hidden=true;$('ambient').hidden=true;if(params.input)selectedInput=input;focusHome();}
   else return false;
   return true;
  }
- document.addEventListener('webOSRelaunch',function(event){handoff=false;var params=launchParams(event);if(params&&params.parameters)params=params.parameters;$('settings').hidden=true;$('ambient').hidden=true;lastActivity=Date.now();clock();$('settingsBtn').focus();activate();if(!ha.ready)ha.connect();if(!runAction(params))setTimeout(function(){if(!document.hidden&&!autoDashboard&&!heroApp)preview(selectedInput);},150);});window.addEventListener('resize',resize);resize();clock();setInterval(clock,1000);previewEnabled=localStorage.getItem('luma-preview')!=='off';changed(states);LumaRuntime.setup().then(function(){ha.connect();return LumaRuntime.catalog();}).then(function(apps){catalog=apps.concat(catalog.filter(function(a){return a.id.indexOf('luma:')===0;}));listSignature='';renderApps();ha.connect();var report=setInterval(function(){if(ha.ready&&ha.entryId){clearInterval(report);ha.report({catalog:catalog,version:'0.4.6',setup_complete:true}).catch(function(){});}},500);setTimeout(function(){clearInterval(report);},30000);}).catch(function(e){say(e.message);ha.connect();});$('settingsBtn').focus();setTimeout(function(){if(!document.hidden&&!autoDashboard&&!heroApp&&previewEnabled&&$('settings').hidden&&$('ambient').hidden)preview(selectedInput);},400);setTimeout(function(){runAction(launchParams());},0);
+ document.addEventListener('webOSRelaunch',function(event){
+  handoff=false;closeRoomPanel(false);stopPreview();
+  var params=launchParams(event);if(params&&params.parameters)params=params.parameters;
+  $('settings').hidden=true;$('ambient').hidden=true;lastActivity=Date.now();clock();focusHome();activate();
+  if(!ha.ready)ha.connect();runAction(params);
+ });
+ window.addEventListener('resize',resize);resize();clock();setInterval(clock,1000);
+ previewEnabled=localStorage.getItem('luma-preview')!=='off';changed(states);focusHome();
+ LumaRuntime.setup().then(function(){ha.connect();return LumaRuntime.catalog();}).then(function(apps){
+  catalog=apps.concat(catalog.filter(function(a){return a.id.indexOf('luma:')===0;}));catalogRevision++;renderApps();ha.connect();
+  catalogArtwork=loadArtwork().catch(function(){return null;});
+  publishCatalog();
+ }).catch(function(e){say(e.message);ha.connect();});
+ setTimeout(function(){runAction(launchParams());},0);
  // Read-only runtime status for on-device inspection; never exposes credentials.
- window.lumaStatus=function(){return {version:'0.4.6',haConnected:ha.ready,stateCount:Object.keys(states).length,pins:pins(),input:selectedInput,video:{readyState:$('inputVideo').readyState,width:$('inputVideo').videoWidth,height:$('inputVideo').videoHeight,error:$('inputVideo').error&&$('inputVideo').error.code}};};
+ window.lumaStatus=function(){return {version:'0.4.21',haConnected:ha.ready,stateCount:Object.keys(states).length,pins:pins(),input:selectedInput,video:{readyState:$('inputVideo').readyState,width:$('inputVideo').videoWidth,height:$('inputVideo').videoHeight,error:$('inputVideo').error&&$('inputVideo').error.code}};};
 })();

@@ -16,12 +16,7 @@ def main():
     server=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM);server.bind(PATH);os.chmod(PATH,384);server.listen(1);server.setblocking(False)
     def status(phase):
         with open(ROOT+'/capture-status.json','w') as f:json.dump({'phase':phase,'bytes':total,'reason':reason,'elapsedMs':int((time.time()-started)*1000),'socketMs':None if connected_at is None else int((connected_at-started)*1000),'firstAudioMs':None if first_audio is None else int((first_audio-started)*1000)},f)
-    def card(message):
-        p=subprocess.Popen(['/usr/bin/luna-send','-w','1200','-n','1','luna://com.webos.applicationManager/launch',json.dumps({'id':'com.spinoff.lumahome.overlay','keepAlive':True,'params':{'voice':{'phase':'listening','message':message}}})],stdin=subprocess.PIPE,stdout=open(os.devnull,'wb'),stderr=subprocess.STDOUT)
-        return p
-    def end(why):
-        return why
-    status('starting');ui=card('Starting microphone…')
+    status('starting')
     try:
         while time.time()-started<45:
             now=time.time()
@@ -66,7 +61,7 @@ def main():
                 if data:
                     # 30 seconds / 960 kB maximum, even when HA is offline.
                     room=960000-total;data=data[:room];total+=len(data);pending.append(data)
-                    if first_audio is None:first_audio=now;status('listening');ui=card('Listening… '+('release when finished.' if mode=='hold' else 'speak naturally.'))
+                    if first_audio is None:first_audio=now;status('listening')
                     samples=struct.unpack('<%dh'%(len(data)//2),data[:len(data)//2*2]);energy=sum(x*x for x in samples)/max(1,len(samples))
                     if energy>450*450:last_speech=now
                 elif data==b'':reason='microphone_closed';finished=True;status('finished')

@@ -1,14 +1,36 @@
 <!doctype html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=1920,initial-scale=1"><title>Luma Home</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="icons.css"><link rel="stylesheet" href="lights.css"><link rel="stylesheet" href="navigation.css"></head><body>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=1920,initial-scale=1"><title>Luma Home</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="icons.css"><link rel="stylesheet" href="lights.css"><link rel="stylesheet" href="navigation.css"><link rel="stylesheet" href="lumax.css"></head><body class="lumax-style">
 <div class="backdrop"><div class="mountains"></div></div>
 <main id="home">
- <header><div class="brand"><span data-icon="house"></span> <span id="roomName">Home</span></div><div class="header-buttons" data-nav-zone="header" data-nav-row><button id="idleBtn" aria-label="Idle screen" data-icon="moon"></button><button id="settingsBtn" aria-label="Settings" data-icon="settings-2"></button></div></header>
- <section class="hero"><div><div id="clock" class="clock"></div><div id="date" class="date"></div></div><div id="climate" class="climate"><div class="climate-tile"><span class="climate-icon" data-icon="thermometer"></span><div><strong id="temperature">—</strong><span>Temperature</span></div></div><div class="climate-tile"><span class="climate-icon" data-icon="droplets"></span><div><strong id="humidity">—</strong><span>Humidity</span></div></div></div></section>
- <section class="main-grid"><div class="preview" data-nav-zone="preview"><video id="inputVideo" autoplay muted></video><div id="previewFallback"><div class="fallback-symbol" data-icon="monitor"></div><div id="appHero" hidden></div><span id="previewMessage">Select an HDMI input to preview</span></div><span class="preview-label">INPUT PREVIEW</span><div class="preview-bottom"><div><h1 id="inputName">HDMI 1</h1><span id="inputDetail">One selected input at a time</span></div><button id="watchBtn"><span data-icon="external-link"></span> <span id="watchLabel">Watch</span></button></div></div><div id="controls" class="controls" data-nav-zone="controls"></div></section>
- <section><div class="section-title"><h2>Watch something</h2><button data-nav-zone="app-tools" id="editPinsBtn" class="text-button">Edit pins</button></div><div id="appRail" class="app-rail"><div id="apps" class="apps" data-nav-zone="apps" data-nav-row aria-label="Apps and inputs"></div><span class="rail-edge rail-left" aria-hidden="true">‹</span><span class="rail-edge rail-right" aria-hidden="true">›</span></div></section>
- <footer><span id="haStatus" role="status">Connecting…</span><span id="navHint">Arrows to move · OK to select · Back to return</span></footer>
+ <header><div class="brand"><span data-icon="house"></span> <span id="roomName">Home</span></div><div class="header-buttons" data-nav-zone="header" data-nav-row><button id="lumaxControls" type="button">Room controls</button><button id="settingsBtn" aria-label="Settings"><span data-icon="settings-2"></span><span class="launcher-settings-label">Settings</span></button></div></header>
+ <section class="hero"><div id="clock" class="clock"></div><div id="date" class="date"></div>
+  <div id="climate" class="room-readings" hidden>
+   <div class="room-reading" hidden><span data-icon="thermometer"></span><span id="temperature" aria-label="Temperature"></span></div>
+   <div class="room-reading" hidden><span data-icon="droplets"></span><span id="humidity" aria-label="Humidity"></span></div>
+   <div class="room-reading" hidden><span class="luma-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M3 7h10m3 0h3a2 2 0 0 0 0-4M3 12h17a2 2 0 0 1 0 4M3 17h10a2 2 0 0 1 0 4"/></svg></span><span id="co2" aria-label="Carbon dioxide"></span></div>
+  </div>
+ </section>
+ <div id="launcher">
+  <h1 id="launcherTitle"></h1>
+  <div id="launcherTiles" data-nav-zone="launcher-apps">
+   <div id="launcherDock" class="launcher-grid" aria-label="Dock"></div>
+   <div id="launcherDrawer" class="launcher-grid" aria-label="All apps"></div>
+  </div>
+ </div>
+ <aside id="roomPanel" aria-label="Room controls" hidden>
+  <div class="room-panel-header" data-nav-zone="room-header"><h2>Room controls</h2><button id="closeRoomPanel">Close</button></div>
+  <div id="controls" class="controls" data-nav-zone="controls"></div>
+  <p id="haStatus" role="status">Connecting…</p>
+ </aside>
+ <section id="inputPreview" aria-label="HDMI preview" hidden>
+  <div class="preview" data-nav-zone="preview">
+   <video id="inputVideo" autoplay muted></video>
+   <div id="previewFallback"><span id="previewMessage">Opening input…</span></div>
+   <div class="preview-bottom"><h1 id="inputName">HDMI 1</h1><button id="watchBtn">Watch</button><button id="closePreviewBtn">Close</button></div>
+  </div>
+ </section>
 </main>
-<section id="settings" class="panel" hidden><header><h1>Make it yours</h1><button data-nav-zone="settings-header" id="closeSettings">Done</button></header><p id="settingsNote">Changes here also appear in your Luma Home dashboard in Home Assistant.</p><nav data-nav-zone="tabs" data-nav-row><button data-tab="pins">Pinned apps</button><button data-tab="widgets">Widgets & controls</button><button data-tab="appearance">Appearance</button><button data-tab="system">System & voice</button></nav><div data-nav-zone="settings-content" id="settingsContent"></div><div id="settingsError" role="status"></div></section>
+<section id="settings" class="panel" hidden><header><h1>Settings</h1><button data-nav-zone="settings-header" id="closeSettings">Done</button></header><p id="settingsNote">Changes here also appear in your Luma Home dashboard in Home Assistant.</p><nav data-nav-zone="tabs" data-nav-row><button data-tab="pins">Apps</button><button data-tab="widgets">Widgets & controls</button><button data-tab="appearance">Appearance</button><button data-tab="system">System & voice</button></nav><div data-nav-zone="settings-content" id="settingsContent"></div><div id="settingsError" role="status"></div></section>
 <section id="ambient" hidden><div class="ambient-inner"><div class="clock" id="ambientClock"></div><div id="ambientDate" class="date"></div><div id="ambientClimate"></div><button id="wakeBtn">Return home</button></div></section>
 <div id="toast" role="status" hidden></div>
-<script src="icons.js"></script><script src="bootstrap.js"></script><script src="common.js"></script><script src="runtime.js"></script><script src="lights.js"></script><script src="navigation.js"></script><script src="app-rail.js"></script><script src="app.js"></script></body></html>
+<script src="icons.js"></script><script src="bootstrap.js"></script><script src="common.js"></script><script src="runtime.js"></script><script src="lights.js"></script><script src="navigation.js"></script><script src="launcher.js"></script><script src="app.js"></script></body></html>

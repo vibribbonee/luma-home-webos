@@ -85,12 +85,24 @@ def stop():
         try:os.kill(pid,signal.SIGTERM)
         except OSError:pass
 
+def reload_worker():
+    """Refresh the warm process after an IPK replaces its source on disk."""
+    if os.path.isdir(ROOT+'/voice.lock'):
+        return False
+    stop()
+    deadline=time.time()+2
+    while worker_pid():
+        if time.time()>=deadline:return False
+        time.sleep(.05)
+    return not os.path.exists(ROOT+'/voice.enabled') or warm()
+
 def main():
     os.umask(63)
     command=sys.argv[1] if len(sys.argv)>1 else 'status'
     if command=='warm':return 0 if warm() else 1
     if command=='start':return 0 if start() else 1
     if command=='stop':stop();return 0
+    if command=='reload':return 0 if reload_worker() else 1
     if command=='status':print('ready' if ping() else 'busy' if worker_pid() else 'stopped');return 0
     return 2
 

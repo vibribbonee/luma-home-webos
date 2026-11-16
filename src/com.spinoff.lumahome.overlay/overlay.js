@@ -11,7 +11,7 @@
   if(incoming.configure){var config=incoming.configure;LumaRuntime.setup().then(function(){return LumaRuntime.configure(config);}).then(function(){Luma.hide();}).catch(function(){});return;}
   if(incoming.announcement){window.startLumaAnnouncement(incoming.announcement);activate();return;}
   if(incoming.notification){notification(incoming.notification);return;}
-  if(incoming.voice){if(incoming.voice.phase==='starting'&&window.cancelLumaAnnouncement)window.cancelLumaAnnouncement(true);if(!window.lumaCameraOpen)$('camera').hidden=true;window.startLumaVoice(incoming.voice);activate();return;}
+  if(incoming.voice){if(incoming.voice.phase==='starting'&&window.cancelLumaAnnouncement)window.cancelLumaAnnouncement(true);if(!window.lumaCameraOpen)$('camera').hidden=true;if(window.startLumaVoice(incoming.voice)!==false)activate();return;}
   if(incoming.quick){if(!window.lumaCameraOpen)$('camera').hidden=true;if(window.lumaQuickOpen&&incoming.toggle!==false){window.closeLumaQuick();return;}window.lumaQuickOpen=true;window.startLumaQuick();if(window.lumaLayout)window.lumaLayout();activate();return;}
   if(incoming.close){closeAll();return;}
   if(!incoming.camera){Luma.hide();return;}

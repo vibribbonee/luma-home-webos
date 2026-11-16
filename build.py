@@ -18,6 +18,10 @@ def build(app_id):
     for path in sorted(src.rglob('*')):
         if path.is_file() and not path.name.startswith('.'):
             app_files.append((f'./usr/palm/applications/{app_id}/{path.relative_to(src)}',path.read_bytes(),0o644))
+    if app_id.endswith('.overlay'):
+        main = ROOT / 'src/com.spinoff.lumahome'
+        for relative in ('assets/outfit.ttf', 'licenses/outfit.txt'):
+            app_files.append((f'./usr/palm/applications/{app_id}/{relative}', (main / relative).read_bytes(), 0o644))
     package={'app':app_id,'id':app_id,'loc_name':info['title'],'package_format_version':2,'vendor':'Spinoff','version':version,'services':[]}
     app_files.append((f'./usr/palm/packages/{app_id}/packageinfo.json',json.dumps(package).encode(),0o644))
     control=f'Package: {app_id}\nVersion: {version}\nArchitecture: all\nSection: webosbrew\nPriority: optional\nMaintainer: Spinoff\nDescription: Luma Home launcher and Home Assistant controls\n'.encode()

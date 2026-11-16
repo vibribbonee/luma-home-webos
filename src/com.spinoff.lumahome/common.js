@@ -11,12 +11,17 @@
   try{b.call(uri,JSON.stringify(params||{}));}catch(e){finish(e);}
  });}
  function exec(command){return luna('luna://org.webosbrew.hbchannel.service/exec',{command:command}).then(function(r){return String(r.stdoutString||r.stdout||'');});}
+ function getConnection(){
+  if(cachedConnection)return Promise.resolve(cachedConnection);
+  var command='/usr/bin/python /media/developer/apps/usr/palm/applications/com.spinoff.lumahome/runtime/discover-ha.py --connection';
+  function discover(flag){return exec(command+flag).then(function(raw){var c=JSON.parse(raw.trim());if(c.error)throw Error(c.error);return c;});}
+  return discover(' --fast').catch(function(){return discover(' --browse');});
+ }
+ function connectionAddress(){return getConnection().then(function(connection){return connection.url.replace(/\/$/,'');});}
  function HA(connection,changed,status){this.connection=connection;this.changed=changed;this.status=status;this.states={};this.pending={};this.events={};this.seq=0;this.epoch=0;this.ready=false;this.stopped=false;this.delay=2000;}
  HA.prototype.connect=function(){
   var self=this;if(self.ready||self.connecting)return;clearTimeout(self.retry);self.connecting=true;var epoch=++self.epoch;self.stopped=false;self.status('Finding Home Assistant…');
-  var DISCOVER='/usr/bin/python /media/developer/apps/usr/palm/applications/com.spinoff.lumahome/runtime/discover-ha.py --connection';
-  function discover(flag){return exec(DISCOVER+flag).then(function(raw){var c=JSON.parse(raw.trim());if(c.error)throw Error(c.error);return c;});}
-  var load=self.connection?Promise.resolve(self.connection):cachedConnection?Promise.resolve(cachedConnection):discover(' --fast').catch(function(){return discover(' --browse');});
+  var load=self.connection?Promise.resolve(self.connection):getConnection();
   load.then(function(c){
    if(self.stopped||epoch!==self.epoch)return;
    self.current=c;cachedConnection=c;
@@ -85,7 +90,7 @@
  function list(value){try{var a=JSON.parse(value);return Array.isArray(a)?a.filter(function(x){return typeof x==='string';}):[];}catch(_){return [];}}
  function saveList(ha,entity,items){items=items.filter(function(x,i,a){return typeof x==='string'&&a.indexOf(x)===i;});var value=JSON.stringify(items);if(value.length>255)return Promise.reject(Error('This list is full. Remove a pin before adding another.'));return ha.service('input_text','set_value',entity,{value:value});}
  function nativeHide(){var system=global.PalmSystem||global.webOSSystem;try{if(system){if(typeof system.keepAlive==='function')system.keepAlive(true);else if(typeof system.keepAlive==='boolean')system.keepAlive=true;}}catch(_){}try{if(system&&typeof system.hide==='function'){system.hide();return;}}catch(_){}global.close();}
- function hide(){if(global.lumaCameraOpen||global.lumaVoiceOpen||global.lumaQuickOpen||global.lumaNotificationOpen||global.lumaAnnouncementOpen)return Promise.resolve();return exec("nohup /usr/bin/python /var/lib/webosbrew/lumahome/input-handoff.py --current >/dev/null 2>&1 </dev/null &").catch(function(){}).then(nativeHide);}
+ function hide(repairVideo){if(global.lumaCameraOpen||global.lumaVoiceOpen||global.lumaQuickOpen||global.lumaNotificationOpen||global.lumaAnnouncementOpen)return Promise.resolve();if(repairVideo===false){nativeHide();return Promise.resolve();}return exec("nohup /usr/bin/python /var/lib/webosbrew/lumahome/input-handoff.py --current >/dev/null 2>&1 </dev/null &").catch(function(){}).then(nativeHide);}
  var HEIGHT={Small:138,Compact:70,Standard:106,Large:132},BUDGET=488,MAXTILES=12;
  function sizeFor(id,fallback,map){var s=map&&map[id];return HEIGHT[s]?s:(HEIGHT[fallback]?fallback:'Standard');}
  function layout(ids,fallback,map,columns){columns=Number(columns)===2?2:3;var y=0,rowH=0,col=0,out=[];
@@ -94,5 +99,5 @@
  function fit(ids,fallback,map,columns){return layout(ids,fallback,map,columns).map(function(x){return x.id;});}
  function parseMap(v){try{var o=JSON.parse(v);return o&&typeof o==='object'&&!Array.isArray(o)?o:{};}catch(_){return {};}}
  function formatText(root,value){root.textContent='';var text=String(value||''),pattern=/\*\*([^*]+)\*\*/g,last=0,m;while((m=pattern.exec(text))){root.appendChild(document.createTextNode(text.slice(last,m.index)));var strong=document.createElement('strong');strong.textContent=m[1];root.appendChild(strong);last=m.index+m[0].length;}root.appendChild(document.createTextNode(text.slice(last)));}
- global.Luma={formatText:formatText,prepareInput:prepareInput,restoreInputVideo:restoreInputVideo,layout:layout,sizeFor:sizeFor,fit:fit,parseMap:parseMap,luna:luna,exec:exec,HA:HA,list:list,saveList:saveList,hide:hide};
+ global.Luma={connectionAddress:connectionAddress,formatText:formatText,prepareInput:prepareInput,restoreInputVideo:restoreInputVideo,layout:layout,sizeFor:sizeFor,fit:fit,parseMap:parseMap,luna:luna,exec:exec,HA:HA,list:list,saveList:saveList,hide:hide};
 })(window);

@@ -4,19 +4,38 @@
     "step": {
       "user": {
         "title": "Set up Luma Home",
+        "description": "Choose how Luma runs on this screen.",
+        "menu_options": {
+          "webos": "LG webOS TV",
+          "streamer": "Android TV or Google TV Streamer"
+        }
+      },
+      "webos": {
+        "title": "Set up Luma Home",
         "description": "Select the LG webOS TV that has Luma installed. Each TV gets its own pins, controls, voice preferences and wallpaper.",
         "data": {
           "tv_entity": "LG webOS TV",
           "name": "Room name",
           "import_existing": "Import existing Luma settings"
         }
+      },
+      "streamer": {
+        "title": "Set up a LumaX Streamer",
+        "description": "Select the remote entity from Android TV Remote. In LumaX, connect to this Home Assistant and select the room you create here.",
+        "data": {
+          "streamer_remote": "Android TV Remote",
+          "name": "Room name",
+          "area_id": "Home Assistant area",
+          "lumax_activity": "LumaX app"
+        }
       }
     },
     "error": {
-      "not_webostv": "Choose a TV from the LG webOS integration."
+      "not_webostv": "Choose a TV from the LG webOS integration.",
+      "not_android_tv_remote": "Choose a remote from the Android TV Remote integration."
     },
     "abort": {
-      "already_configured": "This TV is already configured."
+      "already_configured": "This device is already configured."
     }
   },
   "options": {
@@ -34,6 +53,14 @@
           "voice_reply": "Voice reply",
           "streamer_remote": "Streamer remote",
           "streamer_adb": "Streamer adb"
+        }
+      },
+      "streamer_options": {
+        "title": "LumaX Streamer preferences",
+        "data": {
+          "room": "Room name",
+          "voice_reply": "Spoken replies",
+          "lumax_activity": "LumaX app"
         }
       }
     }

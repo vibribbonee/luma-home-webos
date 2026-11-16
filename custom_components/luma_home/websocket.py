@@ -26,6 +26,14 @@ COMMON={vol.Optional('entry_id'):str,vol.Optional('tv_id'):str}
 async def get_config(hass,connection,msg):
     try:connection.send_result(msg['id'],authorized(hass,connection,msg).snapshot())
     except HomeAssistantError as err:connection.send_error(msg['id'],'not_paired',str(err))
+@websocket_api.websocket_command({vol.Required('type'):'luma_home/catalog/artwork',**COMMON})
+@websocket_api.async_response
+async def get_catalog_artwork(hass,connection,msg):
+    try:
+        tv = authorized(hass, connection, msg)
+        connection.send_result(msg['id'], {'version': tv.artwork_version, 'icons': tv.catalog_artwork})
+    except HomeAssistantError as err:
+        connection.send_error(msg['id'], 'not_paired', str(err))
 @websocket_api.websocket_command({vol.Required('type'):'luma_home/config/set',vol.Required('settings'):dict,**COMMON})
 @websocket_api.async_response
 async def set_config(hass,connection,msg):
@@ -61,8 +69,9 @@ async def states(hass,connection,msg):
 @websocket_api.async_response
 async def list_tvs(hass,connection,msg):
     from homeassistant.auth.permissions.const import POLICY_CONTROL
-    connection.send_result(msg['id'],[{'entry_id':tv.entry.entry_id,'tv_id':tv.tv_id,'name':tv.entry.title} for tv in hass.data.get(DOMAIN,{}).values() if connection.user.permissions.check_entity(tv.entity_id,POLICY_CONTROL)])
-@websocket_api.websocket_command({vol.Required('type'):'luma_home/voice/config',**COMMON})
+    connection.send_result(msg['id'],[{'entry_id':tv.entry.entry_id,'tv_id':tv.tv_id,'name':tv.entry.title,'streamer_only':tv.streamer_only} for tv in hass.data.get(DOMAIN,{}).values() if connection.user.permissions.check_entity(tv.entity_id,POLICY_CONTROL)])
+@websocket_api.websocket_command({vol.Required('type'):'luma_home/voice/config',
+                                  vol.Optional('microphone', default='lg'):vol.In(['lg','streamer']),**COMMON})
 @websocket_api.async_response
 async def voice_config(hass,connection,msg):
     """Use HA's current per-device selector, including the preferred assistant."""
@@ -71,7 +80,7 @@ async def voice_config(hass,connection,msg):
     from homeassistant.helpers import device_registry as dr
     try:
         tv=authorized(hass,connection,msg)
-        if not tv.config['microphone']:raise HomeAssistantError('The HA microphone is disabled for this TV.')
+        if msg['microphone']=='lg' and not tv.config['microphone']:raise HomeAssistantError('The HA microphone is disabled for this TV.')
         pipeline=async_get_pipeline(hass,get_chosen_pipeline(hass,DOMAIN,tv.tv_id))
         device=dr.async_get(hass).async_get_device(identifiers={(DOMAIN,tv.tv_id)})
         connection.send_result(msg['id'],{'pipeline':pipeline.id,'name':pipeline.name,'stt_engine':pipeline.stt_engine,'device_id':device.id if device else None,'voice_reply':tv.config['voice_reply']})
@@ -87,7 +96,11 @@ async def pair(hass,connection,msg):
         connection.send_error(msg['id'],'unauthorized','An administrator must explicitly pair this TV.');return
     refresh=None
     try:
-        tv=authorized(hass,connection,msg);url=msg['url'].rstrip('/');parsed=urlparse(url)
+        tv=authorized(hass,connection,msg)
+        if tv.streamer_only:
+            connection.send_error(msg['id'],'unsupported','Connect to Home Assistant and select this room in LumaX.')
+            return
+        url=msg['url'].rstrip('/');parsed=urlparse(url)
         if parsed.scheme not in ('http','https') or not parsed.hostname or parsed.hostname in ('localhost','127.0.0.1','::1') or parsed.path or parsed.query or parsed.username:raise HomeAssistantError('Use a Home Assistant LAN address that the TV can reach.')
         refresh=await hass.auth.async_create_refresh_token(connection.user,client_name='Luma Home '+tv.entry.title+' '+__import__('uuid').uuid4().hex[:6],token_type=TOKEN_TYPE_LONG_LIVED_ACCESS_TOKEN,access_token_expiration=timedelta(days=3650))
         token=hass.auth.async_create_access_token(refresh)
@@ -114,7 +127,8 @@ async def announcement_result(hass,connection,msg):
 @websocket_api.async_response
 async def lumax_subscribe(hass, connection, msg):
     try:
-        router = authorized(hass, connection, msg).streamer_overlay
+        tv = authorized(hass, connection, msg)
+        router = tv.streamer_overlay
     except HomeAssistantError as err:
         connection.send_error(msg['id'], 'unauthorized', str(err))
         return
@@ -126,6 +140,7 @@ async def lumax_subscribe(hass, connection, msg):
     key = router.subscribe(msg['streamer_input'], send)
     connection.subscriptions[msg['id']] = lambda: router.unsubscribe(key)
     connection.send_result(msg['id'], {'renderer': key})
+    tv.reconcile_quick_panel()
 
 @websocket_api.websocket_command({vol.Required('type'): 'luma_home/lumax/ack',
                                   vol.Required('renderer'): str, vol.Required('nonce'): str, **COMMON})
@@ -138,6 +153,90 @@ async def lumax_ack(hass, connection, msg):
         return
     connection.send_result(msg['id'], {'accepted': router.acknowledge(msg['renderer'], msg['nonce'])})
 
+
+def paired_quick_panel(hass, connection, msg):
+    tv = authorized(hass, connection, msg)
+    if tv.streamer_only or not tv.config['lumax_enabled']:
+        raise HomeAssistantError('The Streamer is not paired with an LG TV.')
+    return tv
+
+
+@websocket_api.websocket_command({vol.Required('type'): 'luma_home/quick/subscribe',
+                                  vol.Required('role'): vol.In(['webos', 'streamer']), **COMMON})
+@websocket_api.async_response
+async def quick_subscribe(hass, connection, msg):
+    try:
+        tv = paired_quick_panel(hass, connection, msg)
+    except HomeAssistantError as err:
+        connection.send_error(msg['id'], 'unavailable', str(err))
+        return
+
+    @callback
+    def send(event):
+        connection.send_event(msg['id'], event)
+
+    connection.send_result(msg['id'])
+    if msg['role'] == 'webos':
+        unsubscribe = tv.quick_panel.open((connection, msg['id']), send)
+        tv.reconcile_quick_panel()
+    else:
+        unsubscribe = tv.quick_panel.watch(send)
+    connection.subscriptions[msg['id']] = unsubscribe
+
+
+@websocket_api.websocket_command({vol.Required('type'): 'luma_home/quick/keepalive',
+                                  vol.Required('subscription'): int, **COMMON})
+@websocket_api.async_response
+async def quick_keepalive(hass, connection, msg):
+    try:
+        panel = paired_quick_panel(hass, connection, msg).quick_panel
+        connection.send_result(msg['id'], {'active': panel.renew((connection, msg['subscription']))})
+    except HomeAssistantError as err:
+        connection.send_error(msg['id'], 'unavailable', str(err))
+
+
+@websocket_api.websocket_command({vol.Required('type'): 'luma_home/quick/key',
+                                  vol.Required('key'): vol.In(['left', 'right', 'up', 'down', 'ok', 'back', 'close']), **COMMON})
+@websocket_api.async_response
+async def quick_key(hass, connection, msg):
+    try:
+        panel = paired_quick_panel(hass, connection, msg).quick_panel
+        connection.send_result(msg['id'], {'accepted': panel.send(msg['key'])})
+    except HomeAssistantError as err:
+        connection.send_error(msg['id'], 'unavailable', str(err))
+
+
+@websocket_api.websocket_command({
+    vol.Required('type'): 'luma_home/voice/display',
+    vol.Required('phase'): vol.In(['starting', 'listening', 'thinking', 'reply', 'error']),
+    vol.Required('message'): vol.All(str, vol.Length(max=4096)),
+    vol.Optional('transcript', default=''): vol.All(str, vol.Length(max=4096)),
+    vol.Optional('audio_path', default=''): vol.All(str, vol.Length(max=2048)),
+    vol.Optional('renderer'): vol.Match(r'^(?:webos|[a-f0-9]{32})$'),
+    vol.Optional('origin', default='lg'): vol.In(['lg', 'streamer']),
+    **COMMON,
+})
+@websocket_api.async_response
+async def voice_display(hass, connection, msg):
+    try:
+        tv = authorized(hass, connection, msg)
+        audio_path = msg['audio_path']
+        if audio_path and not audio_path.startswith('/api/tts_proxy/'):
+            raise HomeAssistantError('Expected a Home Assistant speech reply.')
+        event = {key: msg[key] for key in ('phase', 'message', 'transcript', 'audio_path')}
+        renderer = msg.get('renderer')
+        if msg['phase'] != 'starting' and not renderer:
+            raise HomeAssistantError('The Assist display session has not started.')
+        owner = None
+        if msg['origin'] == 'streamer':
+            owner = await tv.route_voice_from_streamer(event, renderer)
+        elif tv.config['microphone'] and renderer != 'webos':
+            owner = await tv.route_streamer_overlay({'kind': 'voice', **event}, renderer)
+        connection.send_result(msg['id'], {'renderer': owner})
+    except HomeAssistantError as err:
+        connection.send_error(msg['id'], 'voice_unavailable', str(err))
+
+
 @callback
 def async_register(hass):
-    for fn in (get_config,set_config,subscribe,report,states,list_tvs,voice_config,pair,announcement_result,lumax_subscribe,lumax_ack):websocket_api.async_register_command(hass,fn)
+    for fn in (get_config,get_catalog_artwork,set_config,subscribe,report,states,list_tvs,voice_config,voice_display,pair,announcement_result,lumax_subscribe,lumax_ack,quick_subscribe,quick_keepalive,quick_key):websocket_api.async_register_command(hass,fn)
