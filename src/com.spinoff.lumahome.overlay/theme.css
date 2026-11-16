@@ -14,6 +14,9 @@
     --muted: #b8b9c1;
     --focus: #fff;
     --radius: 24px;
+    --edge: 38px;
+    --message-width: 600px;
+    --panel-padding: 28px;
 }
 
 * { box-sizing: border-box; }
@@ -43,10 +46,34 @@ button:focus {
     outline-offset: 2px;
 }
 
+.overlay-close {
+    flex: none;
+    width: 54px;
+    height: 48px;
+    font-size: 24px;
+    line-height: 1;
+    padding: 0;
+}
+
+.overlay-note {
+    position: absolute;
+    left: var(--edge);
+    top: var(--edge);
+    width: var(--message-width);
+    padding: var(--panel-padding);
+    border-radius: var(--radius);
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--text);
+    pointer-events: none;
+}
+
+.overlay-note-title { color: var(--muted); font-size: 21px; }
+
 #camera {
     position: absolute;
-    right: 38px;
-    top: 38px;
+    right: var(--edge);
+    top: var(--edge);
     width: 480px;
     border: 1px solid var(--line);
     border-radius: var(--radius);

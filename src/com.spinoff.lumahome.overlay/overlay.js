@@ -44,7 +44,16 @@
    }).catch(function(){if(run===generation){phase='error';$('message').textContent='Could not request this camera from Home Assistant.';$('message').hidden=false;}});
   }load(mode);
  }
- function notification(data){clearTimeout(notificationTimer);var note=document.getElementById('lumaNotification');if(note)note.remove();note=document.createElement('aside');note.id='lumaNotification';note.style.cssText='position:absolute;left:38px;top:38px;max-width:620px;padding:24px;border-radius:22px;background:#17263bf5;color:white;border:1px solid #7587a0;font-size:24px;z-index:10';var title=document.createElement('strong');title.textContent=data.title||'Home Assistant';note.appendChild(title);var message=document.createElement('div');Luma.formatText(message,data.message||'');note.appendChild(message);var dismiss=document.createElement('button');dismiss.textContent='Dismiss';function end(){note.remove();window.lumaNotificationOpen=false;Luma.hide();}dismiss.onclick=end;note.appendChild(dismiss);document.body.appendChild(note);window.lumaNotificationOpen=true;if(window.lumaLayout)window.lumaLayout();activate();notificationTimer=setTimeout(end,Math.max(3,Math.min(120,Number(data.seconds)||15))*1000);}
+ function notification(data){
+  clearTimeout(notificationTimer);
+  var old=document.getElementById('lumaNotification');if(old)old.remove();
+  var note=document.createElement('aside');note.id='lumaNotification';note.className='overlay-note';note.setAttribute('role','status');
+  var title=document.createElement('div');title.className='overlay-note-title';title.textContent=data.title||'Home Assistant';note.appendChild(title);
+  var message=document.createElement('div');message.className='overlay-note-message';Luma.formatText(message,data.message||'');note.appendChild(message);
+  document.body.appendChild(note);window.lumaNotificationOpen=true;
+  if(window.lumaLayout)window.lumaLayout();activate();
+  notificationTimer=setTimeout(function(){note.remove();window.lumaNotificationOpen=false;if(window.lumaLayout)window.lumaLayout();Luma.hide();},Math.max(3,Math.min(120,Number(data.seconds)||15))*1000);
+ }
  window.lumaCameraStatus=function(){return {phase:phase,visible:!document.hidden&&!$('camera').hidden,frames:frames,width:$('picture').naturalWidth,height:$('picture').naturalHeight,haConnected:!!(ha&&ha.ready),elapsedMs:openedAt?Date.now()-openedAt:0};};
  $('close').onclick=close;document.addEventListener('keydown',function(e){if(!window.lumaCameraOpen||!$('camera').contains(document.activeElement))return;if([13,27,461].indexOf(e.keyCode)>=0){e.preventDefault();close();}});document.addEventListener('webOSRelaunch',open);$('camera').hidden=true;open();
 })();

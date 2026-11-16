@@ -12,6 +12,7 @@ THEMES=['Twilight','Forest','Coast','Dunes','Alpine','Midnight','Aurora','Ember'
 DEFAULTS={'room':'Home','pins':[],'controls':[],'temperature':'','humidity':'','co2':'','hdmi1':'HDMI 1','hdmi2':'HDMI 2','theme':'Twilight','background':'','palette':'','idle':2,'climate':True,'tilesize':'Standard','tiles':{},'columns':3,'lumax_enabled':False,'lumax_input':1,'home_button':False,'home_swap':True,'microphone':False,'voice_mode':'hold','voice_listen_seconds':15,'voice_silence_seconds':1.5,'voice_start_seconds':8,'voice_reply':True,'voice_pipeline':'','streamer_remote':'','streamer_adb':'','notification_seconds':15,'no_signal':False,'screensaver':False}
 LEGACY={'room':'input_text.luma_home_room_name','pins':'input_text.luma_home_pinned_apps','controls':'input_text.luma_home_controls','temperature':'input_text.luma_home_temperature_entity','humidity':'input_text.luma_home_humidity_entity','hdmi1':'input_text.luma_home_hdmi_1_name','hdmi2':'input_text.luma_home_hdmi_2_name','theme':'input_select.luma_home_backdrop','background':'input_text.luma_home_background_image','idle':'input_number.luma_home_idle_minutes','climate':'input_boolean.luma_home_show_climate','tilesize':'input_select.luma_home_tile_size','tiles':'input_text.luma_home_tile_sizes'}
 DEFAULTS['lumax_activity'] = 'lumax://home'
+DEFAULTS['reverse_light_keys'] = None  # Preserve older Streamer-local preferences until anyone sets the shared option.
 PIN_MIGRATION={'ha:script.luma_launch_smarttube':'luma:app/smarttube','ha:script.luma_launch_jellyfin':'luma:app/jellyfin'}
 ENTITY_RE=re.compile(r'^[a-z_]+\.[a-z0-9_]+$')
 def settings(options):return deepcopy(DEFAULTS)|dict(options)
@@ -27,7 +28,7 @@ def validate_patch(patch):
             if key=='controls' and not all(ENTITY_RE.fullmatch(x) for x in value):raise HomeAssistantError('Choose valid Home Assistant entities.')
         elif key=='tiles':
             if not isinstance(value,dict) or not all(ENTITY_RE.fullmatch(k) and v in ('Small','Compact','Standard','Large') for k,v in value.items()):raise HomeAssistantError('Invalid tile sizes.')
-        elif key in ('lumax_enabled','climate','home_swap','home_button','microphone','voice_reply','no_signal','screensaver'):
+        elif key in ('lumax_enabled','climate','home_swap','home_button','microphone','voice_reply','no_signal','screensaver','reverse_light_keys'):
             if not isinstance(value,bool):raise HomeAssistantError(f'{key} must be on or off.')
         elif key in ('lumax_input','idle','columns','voice_listen_seconds','voice_silence_seconds','voice_start_seconds','notification_seconds'):
             lo,hi={'lumax_input':(1,2),'idle':(0,60),'columns':(2,3),'voice_listen_seconds':(3,30),'voice_silence_seconds':(.5,5),'voice_start_seconds':(3,20),'notification_seconds':(3,120)}[key]

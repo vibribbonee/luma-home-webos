@@ -91,7 +91,7 @@ async def async_unload_entry(hass,entry):
     return True
 
 def platforms_for(tv):
-    return ['button', 'select', 'notify'] if tv.streamer_only else PLATFORMS
+    return ['button', 'select', 'notify', 'assist_satellite'] if tv.streamer_only else PLATFORMS
 
 async def async_remove_entry(hass,entry):
     if not entry.data.get('streamer_only'):

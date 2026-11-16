@@ -11,7 +11,7 @@
  window.startLumaAnnouncement=function(next){
   var voice=document.getElementById('voicePanel');if(voice&&!voice.hidden&&['starting','listening','connecting'].indexOf(voice.dataset.phase)>=0){data=next;report('cancelled');return;}
   if(window.lumaAnnouncementOpen)end('cancelled',true);data=next;var run=++generation;queue=[data.preannounce,data.media].filter(function(m){return m&&m.url;});
-  if(!root){root=document.createElement('aside');root.id='announcementPanel';root.className='announcement-panel';root.innerHTML='<div class="announcement-heading">Home Assistant <button aria-label="Dismiss announcement">×</button></div><div class="announcement-message"></div><div class="announcement-status"></div>';document.body.appendChild(root);root.querySelector('button').onclick=function(){end('cancelled');};}
+  if(!root){root=document.createElement('aside');root.id='announcementPanel';root.className='announcement-panel';root.innerHTML='<div class="announcement-heading">Home Assistant <button class="overlay-close" aria-label="Dismiss announcement">×</button></div><div class="announcement-message"></div><div class="announcement-status"></div>';document.body.appendChild(root);root.querySelector('button').onclick=function(){end('cancelled');};}
 
   if(window.pauseLumaVoiceAudio)window.pauseLumaVoiceAudio();window.lumaAnnouncementOpen=true;root.hidden=false;Luma.formatText(root.querySelector('.announcement-message'),data.message||'Announcement');root.querySelector('.announcement-status').textContent='Connecting…';layout();
   if(!document.activeElement||document.activeElement===document.body||document.activeElement.offsetParent===null)root.querySelector('button').focus();

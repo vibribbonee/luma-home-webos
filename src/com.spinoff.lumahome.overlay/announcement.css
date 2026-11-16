@@ -1,1 +1,16 @@
-.announcement-panel{position:absolute;left:38px;top:38px;width:600px;padding:24px 28px;border-radius:24px;border:1px solid var(--line);background:var(--surface);color:var(--text);z-index:5}.announcement-heading{display:flex;align-items:center;font-size:20px;color:var(--muted);margin-bottom:14px}.announcement-heading button{margin-left:auto;font-size:26px;padding:3px 12px}.announcement-message{font-size:26px;line-height:1.35;white-space:pre-line}.announcement-status{font-size:18px;color:var(--muted);margin-top:10px}.announcement-status:empty{display:none}
+.announcement-panel {
+    position: absolute;
+    left: var(--edge);
+    top: var(--edge);
+    width: var(--message-width);
+    padding: var(--panel-padding);
+    border-radius: var(--radius);
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--text);
+    z-index: 5;
+}
+.announcement-heading { display: flex; align-items: center; justify-content: space-between; color: var(--muted); font-size: 21px; }
+.announcement-message { margin-top: 14px; font-size: 29px; line-height: 1.35; white-space: pre-line; }
+.announcement-status { margin-top: 10px; color: var(--muted); font-size: 20px; }
+.announcement-status:empty { display: none; }

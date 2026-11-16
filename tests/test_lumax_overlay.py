@@ -102,6 +102,15 @@ class StreamerOverlayTest(unittest.IsolatedAsyncioTestCase):
         ambiguous = {**self.settings, 'hdmi2': 'Google TV'}
         self.assertIsNone(active('on', {'source': 'Google TV'}, ambiguous))
 
+    def test_native_remote_requires_a_known_view_other_than_the_streamer(self):
+        target = lumax.native_remote_target
+        self.assertTrue(target('on', {'app_id': 'com.webos.app.hdmi2'}, self.settings))
+        self.assertTrue(target('playing', {'app_id': 'com.webos.app.youtube'}, self.settings))
+        self.assertFalse(target('on', {'app_id': 'com.webos.app.hdmi1'}, self.settings))
+        self.assertFalse(target('on', {'source': 'Console'}, self.settings))
+        self.assertFalse(target('on', {'app_id': 'com.spinoff.lumahome.overlay'}, self.settings))
+        self.assertFalse(target('off', {'app_id': 'com.webos.app.hdmi2'}, self.settings))
+
     async def test_an_overlay_waits_for_the_requested_hdmi(self):
         first, second = 'com.webos.app.hdmi1', 'com.webos.app.hdmi2'
         read = AsyncMock(side_effect=[first, second])

@@ -69,6 +69,16 @@ def active_streamer_input(state, attributes, settings):
     return None
 
 
+def native_remote_target(state, attributes, settings):
+    """Only forward to the TV when webOS positively identifies a different view."""
+    app = attributes.get('app_id')
+    if state in (None, 'off', 'unavailable', 'unknown') or not isinstance(app, str) or not app:
+        return False
+    if app == 'com.spinoff.lumahome.overlay':
+        return False
+    return active_streamer_input(state, attributes, settings) is None
+
+
 async def overlay_tv_attributes(read_app_id, fallback, current_transition):
     """Prefer the TV's live foreground app, waiting briefly for a requested input."""
     loop = asyncio.get_running_loop()
@@ -92,22 +102,25 @@ class QuickPanel:
         self.listeners = set()
         self.owner = None
         self.expiry = None
+        self.hold_confirm = False
 
     def watch(self, send):
         self.listeners.add(send)
-        send({'active': self.owner is not None})
+        send(self.presence())
         return lambda: self.listeners.discard(send)
 
     @property
     def active_owner(self):
         return self.owner[0] if self.owner is not None else None
 
-    def open(self, owner, send):
+    def open(self, owner, send, *, hold_confirm=False):
         was_open = self.owner is not None
+        changed_capability = self.hold_confirm != hold_confirm
         self.owner = owner, send
+        self.hold_confirm = hold_confirm
         self.renew(owner)
-        if not was_open:
-            self.changed(True)
+        if not was_open or changed_capability:
+            self.changed()
         return lambda: self.close(owner)
 
     def renew(self, owner):
@@ -122,9 +135,10 @@ class QuickPanel:
         if self.owner is None or self.owner[0] != owner:
             return
         self.owner = None
+        self.hold_confirm = False
         self.expiry.cancel()
         self.expiry = None
-        self.changed(False)
+        self.changed()
 
     def send(self, key, *, expected_owner=None):
         if self.owner is None or (expected_owner is not None and self.active_owner != expected_owner):
@@ -135,9 +149,16 @@ class QuickPanel:
             self.close(owner)
         return True
 
-    def changed(self, active):
+    def presence(self):
+        result = {'active': self.owner is not None}
+        if self.hold_confirm:
+            result['hold_confirm'] = True
+        return result
+
+    def changed(self):
+        event = self.presence()
         for send in tuple(self.listeners):
-            send({'active': active})
+            send(event)
 
 
 class StreamerOverlay:

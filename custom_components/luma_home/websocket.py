@@ -162,7 +162,8 @@ def paired_quick_panel(hass, connection, msg):
 
 
 @websocket_api.websocket_command({vol.Required('type'): 'luma_home/quick/subscribe',
-                                  vol.Required('role'): vol.In(['webos', 'streamer']), **COMMON})
+                                  vol.Required('role'): vol.In(['webos', 'streamer']),
+                                  vol.Optional('hold_confirm', default=False): bool, **COMMON})
 @websocket_api.async_response
 async def quick_subscribe(hass, connection, msg):
     try:
@@ -177,10 +178,17 @@ async def quick_subscribe(hass, connection, msg):
 
     connection.send_result(msg['id'])
     if msg['role'] == 'webos':
-        unsubscribe = tv.quick_panel.open((connection, msg['id']), send)
+        unsubscribe = tv.quick_panel.open((connection, msg['id']), send, hold_confirm=msg['hold_confirm'])
         tv.reconcile_quick_panel()
     else:
-        unsubscribe = tv.quick_panel.watch(send)
+        stop_overlay = tv.quick_panel.watch(send)
+        tv.publish_remote_target()
+        tv.remote_listeners.add(send)
+        send({'native_target': tv.remote_target})
+
+        def unsubscribe():
+            stop_overlay()
+            tv.remote_listeners.discard(send)
     connection.subscriptions[msg['id']] = unsubscribe
 
 
@@ -196,12 +204,16 @@ async def quick_keepalive(hass, connection, msg):
 
 
 @websocket_api.websocket_command({vol.Required('type'): 'luma_home/quick/key',
-                                  vol.Required('key'): vol.In(['left', 'right', 'up', 'down', 'ok', 'back', 'close']), **COMMON})
+                                  vol.Required('key'): vol.In(['left', 'right', 'up', 'down', 'ok', 'ok_hold', 'back', 'close']),
+                                  vol.Optional('native', default=False): bool, **COMMON})
 @websocket_api.async_response
 async def quick_key(hass, connection, msg):
     try:
-        panel = paired_quick_panel(hass, connection, msg).quick_panel
-        connection.send_result(msg['id'], {'accepted': panel.send(msg['key'])})
+        tv = paired_quick_panel(hass, connection, msg)
+        accepted = tv.quick_panel.send(msg['key'])
+        if not accepted and msg['native']:
+            accepted = await tv.send_remote_key(msg['key'])
+        connection.send_result(msg['id'], {'accepted': accepted})
     except HomeAssistantError as err:
         connection.send_error(msg['id'], 'unavailable', str(err))
 

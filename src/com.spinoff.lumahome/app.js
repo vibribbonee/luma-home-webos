@@ -38,7 +38,7 @@
   var socket=ha.ws;
   if(!catalogArtwork||!ha.ready||!ha.entryId||socket===reportedSocket)return;
   reportedSocket=socket;
-  ha.report({catalog:catalog,version:'0.4.21',setup_complete:true}).then(function(){return catalogArtwork;}).then(function(icons){
+  ha.report({catalog:catalog,version:'0.4.23',setup_complete:true}).then(function(){return catalogArtwork;}).then(function(icons){
    if(ha.ws===socket&&ha.ready&&icons&&Object.keys(icons).length)return ha.report({catalog_artwork:icons});
   }).catch(function(){if(reportedSocket===socket)reportedSocket=null;});
  }
@@ -192,6 +192,12 @@
   }else if(settingsTab==='system'){
    root.appendChild(node('p','','Voice capture starts while Home Assistant connects. Hold mode stops on release; silence cutoff applies to Tap mode.'));
    var swap=node('button','',value('home_swap','on')==='on'?'Tap full Home · Hold quick panel':'Tap quick panel · Hold full Home');swap.onclick=function(){save('home_swap',value('home_swap','on')!=='on').then(renderSettings).catch(err);};root.appendChild(row('Swap Home tap and hold',swap));
+   if(ha.quickHoldConfirm){
+    var reverse=value('reverse_light_keys','off')==='on';
+    var lightKeys=node('button','',reverse?'Tap toggles · Hold adjusts':'Tap adjusts · Hold toggles');
+    lightKeys.onclick=function(){save('reverse_light_keys',!reverse).then(renderSettings).catch(err);};
+    root.appendChild(row('Adjustable lights',lightKeys));
+   }
    root.appendChild(row('Mic button',selection('voice_mode',[{value:'hold',label:'Hold to speak'},{value:'tap',label:'Tap to speak'}])));
    [['voice_listen_seconds','Maximum listening time',3,30,1],['voice_start_seconds','Wait for speech',3,20,1],['voice_silence_seconds','Tap mode silence cutoff',.5,5,.1]].forEach(function(spec){var input=node('input');input.type='range';input.min=spec[2];input.max=spec[3];input.step=spec[4];input.value=value(spec[0],spec[2]);var text=node('span','',input.value+' s');var group=node('div','timing');group.appendChild(input);group.appendChild(text);input.oninput=function(){text.textContent=input.value+' s';};input.onchange=function(){save(spec[0],Number(input.value)).catch(err);};root.appendChild(row(spec[1],group));});
    [['home_button','Home button shortcut'],['microphone','Home Assistant microphone'],['voice_reply','Spoken responses'],['no_signal','Show Home when HDMI has no signal'],['screensaver','Replace the idle screensaver with the clock']].forEach(function(spec){var toggle=node('button','',value(spec[0],'off')==='on'?'On':'Off');toggle.onclick=function(){save(spec[0],value(spec[0],'off')!=='on').then(function(){renderSettings();}).catch(err);};root.appendChild(row(spec[1],toggle));});
@@ -270,5 +276,5 @@
  }).catch(function(e){say(e.message);ha.connect();});
  setTimeout(function(){runAction(launchParams());},0);
  // Read-only runtime status for on-device inspection; never exposes credentials.
- window.lumaStatus=function(){return {version:'0.4.21',haConnected:ha.ready,stateCount:Object.keys(states).length,pins:pins(),input:selectedInput,video:{readyState:$('inputVideo').readyState,width:$('inputVideo').videoWidth,height:$('inputVideo').videoHeight,error:$('inputVideo').error&&$('inputVideo').error.code}};};
+ window.lumaStatus=function(){return {version:'0.4.23',haConnected:ha.ready,stateCount:Object.keys(states).length,pins:pins(),input:selectedInput,video:{readyState:$('inputVideo').readyState,width:$('inputVideo').videoWidth,height:$('inputVideo').videoHeight,error:$('inputVideo').error&&$('inputVideo').error.code}};};
 })();

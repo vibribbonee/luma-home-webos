@@ -23,6 +23,10 @@ const root=path.resolve(__dirname,'..');const boot=JSON.parse(fs.readFileSync(ro
  await page.keyboard.press('ArrowRight');
  await page.waitForFunction(()=>window.calls.some(c=>c.service==='turn_on'&&c.service_data.brightness_pct===60));
  assert.equal(await page.evaluate(()=>document.activeElement.dataset.light),'light.test','Left/Right adjusts the focused slider');
+ await page.keyboard.press('ArrowDown');
+ assert.equal(await page.evaluate(()=>document.activeElement.dataset.property),'color_temp_kelvin');
+ await page.keyboard.press('ArrowRight');
+ await page.waitForFunction(()=>window.calls.some(c=>c.service==='turn_on'&&c.service_data.color_temp_kelvin===3100));
  await page.keyboard.press('Escape');
  assert.equal(await page.evaluate(()=>document.activeElement.dataset.entity),'light.test','Back returns focus to the light tile');
  await page.keyboard.press('ArrowDown');
@@ -31,7 +35,11 @@ const root=path.resolve(__dirname,'..');const boot=JSON.parse(fs.readFileSync(ro
  await page.waitForFunction(()=>window.calls.some(c=>c.domain==='luma_home'&&c.service==='launch_app'&&c.service_data.app==='smarttube'));
  await page.evaluate(()=>window.configChange({lumax_enabled:true}));
  await page.waitForFunction(()=>window.sockets.some(s=>s.quickSub));
+ assert.equal(await page.getByRole('button',{name:'SmartTube'}).isVisible(),false,'paired Room controls only displays the shared room content');
  const remoteKey=key=>page.evaluate(key=>{const s=window.sockets.find(s=>s.quickSub);s.emit({type:'event',id:s.quickSub,event:{key}});},key);
+ await page.locator('[data-entity="light.test"]').focus();
+ await remoteKey('ok_hold');
+ await page.waitForFunction(()=>window.calls.some(c=>c.domain==='light'&&c.service==='turn_off'&&c.target.entity_id==='light.test'));
  await page.locator('[data-entity="switch.test"]').focus();
  await remoteKey('ok');
  await page.waitForFunction(()=>window.calls.some(c=>c.domain==='switch'&&c.service==='turn_on'&&c.target.entity_id==='switch.test'));

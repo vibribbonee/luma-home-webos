@@ -42,7 +42,7 @@
        return self.subscribe({type:'luma_home/config/subscribe',entry_id:self.entryId},function(next){self.applyConfig(next);self.refreshScoped().catch(function(){});});
       }).then(function(){return self.refreshScoped();}).then(function(){
        if(self.ws!==ws)return;self.loading=false;self.status('Home Assistant connected');self.changed(self.states);
-       self.report({version:'0.4.1',setup_complete:true}).catch(function(){});
+       self.report({setup_complete:true}).catch(function(){});
       }).catch(function(e){self.status(e.message||'Add the Luma Home integration in HA.');self.loading=false;self.changed(self.states);});
       self.heartbeat=setInterval(function(){self.call({type:'ping'}).catch(function(){ws.close();});if(!self.clockSyncAt||Date.now()-self.clockSyncAt>600000){self.clockSyncAt=Date.now();if(self.entryId)self.call({type:'luma_home/config/get',entry_id:self.entryId}).then(function(c){self.applyConfig(c);}).catch(function(){});}},30000);
      }else if(m.type==='result'||m.type==='pong'){
@@ -59,7 +59,7 @@
  };
  HA.prototype.subscribe=function(command,listener){return this.call(command,listener);};
  HA.prototype.applyConfig=function(config){
-  this.config=config.settings||{};this.entryId=config.entry_id;this.tvId=config.tv_id;if(config.clock){this.clockOffset=Number(config.clock.utc_ms)-Date.now();this.timeZone=config.clock.time_zone;try{localStorage.setItem('luma-clock',JSON.stringify({offset:this.clockOffset,zone:this.timeZone}));}catch(_){}}this.catalog=config.catalog||[];
+  this.config=config.settings||{};this.quickHoldConfirm=config.quick_hold_confirm===true;this.entryId=config.entry_id;this.tvId=config.tv_id;if(config.clock){this.clockOffset=Number(config.clock.utc_ms)-Date.now();this.timeZone=config.clock.time_zone;try{localStorage.setItem('luma-clock',JSON.stringify({offset:this.clockOffset,zone:this.timeZone}));}catch(_){}}this.catalog=config.catalog||[];
   var self=this,helpers=(window.LUMA_BOOTSTRAP&&window.LUMA_BOOTSTRAP.helpers)||{};
   Object.keys(self.config).forEach(function(k){if(!helpers[k])helpers[k]='luma_config.'+k;var v=self.config[k];self.states[helpers[k]]={entity_id:helpers[k],state:typeof v==='boolean'?(v?'on':'off'):typeof v==='object'?JSON.stringify(v):String(v),attributes:{}};});
   if(!self.loading)self.changed(self.states);

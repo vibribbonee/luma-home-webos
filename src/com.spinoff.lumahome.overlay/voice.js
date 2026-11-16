@@ -42,9 +42,8 @@
   root = el('aside', 'voice-panel');
   root.id = 'voicePanel';
   var heading = el('div', 'voice-heading');
-  heading.appendChild(LumaIcons.icon('circle-dot'));
   heading.appendChild(el('span', '', 'Home Assistant'));
-  var close = el('button', 'voice-close', 'Close');
+  var close = el('button', 'overlay-close', '×');
   close.setAttribute('aria-label', 'Close voice');
   close.onclick = cancel;
   heading.appendChild(close);

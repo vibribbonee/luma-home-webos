@@ -46,7 +46,7 @@
    if(field&&!range){active.dataset.edit='1';if(active.tagName==='INPUT'){active.blur();active.readOnly=false;active.focus();active.dataset.edit='1';return stop(e);}return false;}
   }
   if(key<37||key>40)return false;
-  if(range&&(key===37||key===39)){if(owner&&window.LumaLights){LumaLights.adjust(owner,key===39?1:-1);return stop(e);}e.stopImmediatePropagation();return true;}
+  if(range&&(key===37||key===39)){if(owner&&window.LumaLights){LumaLights.adjust(owner,key===39?1:-1,active);return stop(e);}e.stopImmediatePropagation();return true;}
   move(root,key);return stop(e);
  }
  function bookmark(root){var active=document.activeElement;if(!root.contains(active))return null;var owner=card(active);return {node:active,id:active.id,setting:active.dataset.setting||active.dataset.tileEntity,entity:owner&&owner.dataset.entity,input:active.dataset.input,app:active.dataset.appid,index:items(root,true).indexOf(active),child:owner&&owner!==active?(active.matches('input')?'input':active.className):null};}
