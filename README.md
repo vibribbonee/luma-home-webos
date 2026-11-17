@@ -29,7 +29,7 @@ Tested on LG UP78 (43UP78006LB), webOS 6.3.2-425.
 
 The Streamer setup works with an Android TV or Google TV device connected to any HDMI display.
 
-The current [LumaX preview release](https://github.com/vibribbonee/luma-home-webos/releases/tag/v0.4.26-preview.1) includes the Streamer APK, both webOS packages and the matching Home Assistant integration. See [Streamer setup and source](android-native/README.md).
+The current [LumaX preview release](https://github.com/vibribbonee/luma-home-webos/releases/tag/v0.4.26-preview.2) includes the Streamer APK, both webOS packages and the matching Home Assistant integration. See [Streamer setup and source](android-native/README.md).
 
 1. Add the Streamer to Home Assistant using **Android TV Remote**.
 2. In **Settings → Devices & services → Add integration → Luma Home**, choose **Android TV or Google TV Streamer**. Select its remote entity, then choose the Home Assistant area for Assist.
