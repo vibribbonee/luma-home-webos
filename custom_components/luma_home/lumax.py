@@ -30,6 +30,21 @@ def artwork_revision(icons):
     return sha256(json.dumps(icons, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
 
 
+def catalog_icons(catalog, artwork):
+    """Keep a bounded set of PNG icons for apps still in the catalog."""
+    icons = {}
+    total = 0
+    for app in catalog:
+        icon = artwork.get(app['id'])
+        if not isinstance(icon, str) or not icon.startswith('data:image/png;base64,') or len(icon) > 54000:
+            continue
+        total += len(icon)
+        if total > 700000:
+            break
+        icons[app['id']] = icon
+    return icons
+
+
 def tv_source(attributes):
     """Use the active webOS app ID when the media player provides it."""
     app_id = attributes.get("app_id")
@@ -59,9 +74,23 @@ def is_active_input(source, settings, port):
     )
 
 
+def tv_can_render(state):
+    """Require a reachable, powered-on TV before opening a visual overlay."""
+    return state not in (None, 'off', 'unavailable', 'unknown')
+
+
+def assist_reply_speaker(settings, tv_state, *, streamer_only=False):
+    """Select the configured speaker when the room's reply policy calls for it."""
+    if not settings['voice_reply']:
+        return ''
+    if streamer_only or settings['voice_reply_output'] == 'always' or not tv_can_render(tv_state):
+        return settings['voice_reply_speaker']
+    return ''
+
+
 def active_streamer_input(state, attributes, settings):
     """Return the configured Streamer port only while it is the visible source."""
-    if state in (None, 'off', 'unavailable', 'unknown'):
+    if not tv_can_render(state):
         return None
     port = settings['lumax_input']
     if is_active_input(tv_source(attributes), settings, port):
@@ -72,7 +101,7 @@ def active_streamer_input(state, attributes, settings):
 def native_remote_target(state, attributes, settings):
     """Only forward to the TV when webOS positively identifies a different view."""
     app = attributes.get('app_id')
-    if state in (None, 'off', 'unavailable', 'unknown') or not isinstance(app, str) or not app:
+    if not tv_can_render(state) or not isinstance(app, str) or not app:
         return False
     if app == 'com.spinoff.lumahome.overlay':
         return False

@@ -141,7 +141,7 @@
   }else{update();if(!ha.ready)ha.connect();}
   root.querySelector('button').focus();
  };
- window.lumaOverlayStatus=function(){return {version:'0.4.23',quickOpen:!!window.lumaQuickOpen,visible:!document.hidden,haConnected:!!(ha&&ha.ready)};};window.closeLumaQuick=close;
+ window.lumaOverlayStatus=function(){return {version:'0.4.26',quickOpen:!!window.lumaQuickOpen,visible:!document.hidden,haConnected:!!(ha&&ha.ready)};};window.closeLumaQuick=close;
  window.suspendLumaQuick=suspend;
  function handleKey(e){if(!root||root.hidden||!root.contains(document.activeElement))return false;activity=Date.now();if(LumaNav.handle(e,root))return true;if([27,461].indexOf(e.keyCode)>=0){e.preventDefault();e.stopImmediatePropagation();close();return true;}return false;}
  document.addEventListener('keydown',function(e){

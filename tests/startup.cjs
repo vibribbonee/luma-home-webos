@@ -28,4 +28,15 @@ const root=path.resolve(__dirname,'..'),boot=JSON.parse(fs.readFileSync(root+'/h
  await page.evaluate(()=>window.sockets[0].close());
  await page.waitForFunction(()=>window.calls.filter(c=>c.type==='luma_home/report'&&c.status.catalog).length===2);
  assert.deepStrictEqual(errors,[]);console.log('Passed: parallel HA/catalog startup, one discovery/socket across repeated opens, no duplicate or transient-hover previews, full-state fetch only for entity pickers, and catalog publication after reconnect.');
+ const recovery=await browser.newPage({viewport:{width:1920,height:1080}});
+ await recovery.addInitScript(require('./_ha-mock.cjs').setup,{boot,catalogUnavailable:true});
+ await recovery.goto('file://'+root+'/src/com.spinoff.lumahome/index.html');
+ await recovery.getByText('Could not read installed LG apps.',{exact:true}).waitFor();
+ assert.equal(await recovery.evaluate(()=>window.calls.some(c=>c.type==='luma_home/report'&&c.status.catalog)),false);
+ await recovery.evaluate(()=>{
+  window.catalogUnavailable=false;
+  document.dispatchEvent(new CustomEvent('webOSRelaunch',{detail:{luma:'home'}}));
+ });
+ await recovery.waitForFunction(()=>window.calls.some(c=>c.type==='luma_home/report'&&Array.isArray(c.status.catalog)&&c.status.catalog.length>2));
+ console.log('Passed: a failed LG app lookup never replaces the shared catalog and retries on reopen.');
  }finally{await browser.close();}})().catch(e=>{console.error(e);process.exitCode=1;});

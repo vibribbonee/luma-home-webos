@@ -1,7 +1,7 @@
 'use strict';
 var fs=require('fs'),cp=require('child_process'),net=require('net');
 var ROOT='/var/lib/webosbrew/lumahome',Assist=require('./assist-client'),WebSocket=require('./vendor/ws');
-var client,stream,socket,done=false,capturing=false,sent=0,transcript='',answer='',audioUrl='',pipelineReady=false,micRestored=false,streamBusy=false,lastMicError='',gotRun=false;
+var client,stream,socket,done=false,capturing=false,sent=0,transcript='',answer='',audioUrl='',mediaId='',speakerConfigured=false,pipelineReady=false,micRestored=false,streamBusy=false,lastMicError='',gotRun=false;
 var timers=[],intervals=[],phase='starting',lastError='',gate=null,started=false,startedAt=0,timing={};
 var streamer=null,delivery=Promise.resolve();
 function log(m){try{console.log(new Date().toISOString()+' '+m);}catch(_){}}
@@ -35,6 +35,17 @@ function finish(error){
 }
 function fail(message){lastError=message;log('fail: '+message);finish(message);}
 function stop(){if(started)finish();else process.exit(0);}
+async function showReply(){
+ if(speakerConfigured&&mediaId){
+  try{
+   var result=await client.call({type:'luma_home/voice/reply',tv_id:client.connection.tv_id,media_id:mediaId});
+   if(result&&result.played)audioUrl='';
+  }catch(_){}
+ }
+ if(done)return;
+ card('reply',answer||'Done.');
+ finish();
+}
 process.on('SIGTERM',stop);process.on('SIGINT',stop);process.on('uncaughtException',function(){fail('Voice stopped safely. Try again.');});process.on('unhandledRejection',function(){fail('Voice stopped safely. Try again.');});
 function connectBuffer(){return new Promise(function(resolve,reject){
  var header=Buffer.alloc(0),connected=false,attempts=0;
@@ -56,11 +67,11 @@ async function main(){
   else if(event.type==='stt-vad-end')log('HA VAD event ignored; local capture controls duration.');
   else if(event.type==='stt-end'){transcript=data.stt_output&&data.stt_output.text||'';finishCapture();card('thinking','Home Assistant is thinking…');}
   else if(event.type==='intent-end'){var response=data.intent_output&&data.intent_output.response;answer=response&&response.speech&&response.speech.plain&&response.speech.plain.speech||'';}
-  else if(event.type==='tts-end'){var output=data.tts_output||{},url=output.url||'';if(cfg.voice_reply!==false){if(url.charAt(0)==='/')audioUrl=connection.url+url;else if(url.indexOf(connection.url+'/')===0)audioUrl=url;}}
+  else if(event.type==='tts-end'){var output=data.tts_output||{},url=output.url||'';if(cfg.voice_reply!==false){mediaId=output.media_id||'';if(url.charAt(0)==='/')audioUrl=connection.url+url;else if(url.indexOf(connection.url+'/')===0)audioUrl=url;}}
   else if(event.type==='error')fail(data.message||'Home Assistant could not process that request.');
-  else if(event.type==='run-end'){later(function(){if(done)return;card('reply',answer||'Done.');finish();},250);}
+  else if(event.type==='run-end'){later(function(){if(!done)showReply();},250);}
  });
- await client.connect();timing.authMs=Date.now()-startedAt;var chosen=await client.call({type:'luma_home/voice/config',tv_id:connection.tv_id});cfg.voice_reply=chosen.voice_reply;
+ await client.connect();timing.authMs=Date.now()-startedAt;var chosen=await client.call({type:'luma_home/voice/config',tv_id:connection.tv_id});cfg.voice_reply=chosen.voice_reply;speakerConfigured=chosen.speaker_configured===true;
  var start={phase:'starting',message:'Starting microphone…',transcript:''};
  if(cfg.lumax_enabled&&!fs.existsSync(ROOT+'/lumax.suspended')){
   try{streamer=(await streamerCard(start)).renderer;}catch(_){}

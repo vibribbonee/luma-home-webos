@@ -31,6 +31,6 @@ chmod 755 /var/lib/webosbrew/init.d/95-lumahome-remote
 "$ROOT/home-hook.sh" restart >/dev/null 2>&1 || true
 "$ROOT/ambient-watch.sh" stop
 "$ROOT/ambient-watch.sh" start
-printf '{"installed":true,"version":"0.4.23"}\n' > "$ROOT/install.json"
-touch "$ROOT/.runtime-0.4.23"
-printf '{"success":true,"version":"0.4.23"}\n'
+printf '{"installed":true,"version":"0.4.26"}\n' > "$ROOT/install.json"
+touch "$ROOT/.runtime-0.4.26"
+printf '{"success":true,"version":"0.4.26"}\n'

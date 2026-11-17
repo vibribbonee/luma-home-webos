@@ -1,10 +1,12 @@
 """Per-TV settings and reports; no helper entities or wrapper scripts."""
 from __future__ import annotations
+import asyncio
 import probatio as vol
 from homeassistant.core import callback
 from homeassistant.components import websocket_api
 from homeassistant.exceptions import HomeAssistantError
 from .const import DOMAIN
+from .lumax import assist_reply_speaker
 
 def resolve(hass,msg):
     entries=hass.data.get(DOMAIN,{})
@@ -83,8 +85,42 @@ async def voice_config(hass,connection,msg):
         if msg['microphone']=='lg' and not tv.config['microphone']:raise HomeAssistantError('The HA microphone is disabled for this TV.')
         pipeline=async_get_pipeline(hass,get_chosen_pipeline(hass,DOMAIN,tv.tv_id))
         device=dr.async_get(hass).async_get_device(identifiers={(DOMAIN,tv.tv_id)})
-        connection.send_result(msg['id'],{'pipeline':pipeline.id,'name':pipeline.name,'stt_engine':pipeline.stt_engine,'device_id':device.id if device else None,'voice_reply':tv.config['voice_reply']})
+        connection.send_result(msg['id'],{'pipeline':pipeline.id,'name':pipeline.name,'stt_engine':pipeline.stt_engine,'device_id':device.id if device else None,'voice_reply':tv.config['voice_reply'],'speaker_configured':bool(tv.config['voice_reply_speaker'])})
     except HomeAssistantError as err:connection.send_error(msg['id'],'voice_unavailable',str(err))
+
+
+@websocket_api.websocket_command({
+    vol.Required('type'): 'luma_home/voice/reply',
+    vol.Required('media_id'): vol.Match(r'^media-source://tts/-stream-/[a-zA-Z0-9_-]+\.[a-zA-Z0-9]+$'),
+    **COMMON,
+})
+@websocket_api.async_response
+async def voice_reply(hass, connection, msg):
+    """Send this pipeline's generated reply to the configured room speaker."""
+    from homeassistant.auth.permissions.const import POLICY_CONTROL
+    from homeassistant.components.media_player import MediaPlayerEntityFeature
+    from homeassistant.core import Context
+
+    try:
+        tv = authorized(hass, connection, msg)
+        state = hass.states.get(tv.entity_id)
+        speaker_id = assist_reply_speaker(tv.config, state.state if state else None, streamer_only=tv.streamer_only)
+        speaker = hass.states.get(speaker_id) if speaker_id and speaker_id != tv.entity_id else None
+        if (speaker is None or speaker.state in ('unavailable', 'unknown')
+                or speaker.attributes.get('device_class') == 'tv'
+                or not speaker.attributes.get('supported_features', 0) & MediaPlayerEntityFeature.PLAY_MEDIA
+                or not connection.user.permissions.check_entity(speaker_id, POLICY_CONTROL)):
+            connection.send_result(msg['id'], {'played': False})
+            return
+        async with asyncio.timeout(4):
+            await hass.services.async_call('media_player', 'play_media', {
+                'entity_id': speaker_id, 'media_content_id': msg['media_id'],
+                'media_content_type': 'music', 'announce': True,
+            }, blocking=True, context=Context(user_id=connection.user.id))
+        connection.send_result(msg['id'], {'played': True})
+    except (HomeAssistantError, TimeoutError):
+        connection.send_result(msg['id'], {'played': False})
+
 @websocket_api.websocket_command({vol.Required('type'):'luma_home/pair',vol.Required('url'):str,vol.Required('confirm'):bool,**COMMON})
 @websocket_api.async_response
 async def pair(hass,connection,msg):
@@ -251,4 +287,4 @@ async def voice_display(hass, connection, msg):
 
 @callback
 def async_register(hass):
-    for fn in (get_config,get_catalog_artwork,set_config,subscribe,report,states,list_tvs,voice_config,voice_display,pair,announcement_result,lumax_subscribe,lumax_ack,quick_subscribe,quick_keepalive,quick_key):websocket_api.async_register_command(hass,fn)
+    for fn in (get_config,get_catalog_artwork,set_config,subscribe,report,states,list_tvs,voice_config,voice_display,voice_reply,pair,announcement_result,lumax_subscribe,lumax_ack,quick_subscribe,quick_keepalive,quick_key):websocket_api.async_register_command(hass,fn)

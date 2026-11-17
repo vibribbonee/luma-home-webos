@@ -13,6 +13,8 @@ DEFAULTS={'room':'Home','pins':[],'controls':[],'temperature':'','humidity':'','
 LEGACY={'room':'input_text.luma_home_room_name','pins':'input_text.luma_home_pinned_apps','controls':'input_text.luma_home_controls','temperature':'input_text.luma_home_temperature_entity','humidity':'input_text.luma_home_humidity_entity','hdmi1':'input_text.luma_home_hdmi_1_name','hdmi2':'input_text.luma_home_hdmi_2_name','theme':'input_select.luma_home_backdrop','background':'input_text.luma_home_background_image','idle':'input_number.luma_home_idle_minutes','climate':'input_boolean.luma_home_show_climate','tilesize':'input_select.luma_home_tile_size','tiles':'input_text.luma_home_tile_sizes'}
 DEFAULTS['lumax_activity'] = 'lumax://home'
 DEFAULTS['reverse_light_keys'] = None  # Preserve older Streamer-local preferences until anyone sets the shared option.
+DEFAULTS['voice_reply_speaker'] = ''
+DEFAULTS['voice_reply_output'] = 'tv_off'
 PIN_MIGRATION={'ha:script.luma_launch_smarttube':'luma:app/smarttube','ha:script.luma_launch_jellyfin':'luma:app/jellyfin'}
 ENTITY_RE=re.compile(r'^[a-z_]+\.[a-z0-9_]+$')
 def settings(options):return deepcopy(DEFAULTS)|dict(options)
@@ -39,6 +41,10 @@ def validate_patch(patch):
             if key=='theme' and value not in THEMES:raise HomeAssistantError('Choose an available theme.')
             if key=='tilesize' and value not in ('Small','Compact','Standard','Large'):raise HomeAssistantError('Choose an available tile size.')
             if key=='voice_mode' and value not in ('hold','tap'):raise HomeAssistantError('Choose Hold or Tap to speak.')
+            if key=='voice_reply_output' and value not in ('tv_off','always'):
+                raise HomeAssistantError('Choose TV off only or Always.')
+            if key=='voice_reply_speaker' and value and not (value.startswith('media_player.') and ENTITY_RE.fullmatch(value)):
+                raise HomeAssistantError('Choose a Home Assistant media player.')
             if key=='lumax_activity' and value not in ('lumax://home','lumax-preview://home'):raise HomeAssistantError('Choose an available LumaX app.')
             if key in ('temperature','humidity','co2','streamer_remote','streamer_adb') and value and not ENTITY_RE.fullmatch(value):raise HomeAssistantError('Choose a valid entity.')
             if key=='background' and value and not (value.startswith('/') or re.match(r'^https?://',value)):raise HomeAssistantError('Use an HTTP(S) image URL or Home Assistant image path.')

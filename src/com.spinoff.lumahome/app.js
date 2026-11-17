@@ -4,7 +4,7 @@
  var $=function(id){return document.getElementById(id);};
  var boot=window.LUMA_BOOTSTRAP, catalog=boot.catalog.slice(),states={},selectedInput='1',settingsTab='pins',lastActivity=Date.now(),previewTimer=0,toastTimer=0,pending=false;
  var H=boot.helpers, controlsSignature='',launcherSignature='',catalogRevision=0,previewEnabled=true,previewActive=false,handoff=false;
- var catalogArtwork, reportedSocket;
+ var catalogArtwork, reportedSocket, loadingCatalog=false;
  var autoDashboard=false,lastClockKey='';
  try{selectedInput=localStorage.getItem('luma-last-input')==='2'?'2':'1';}catch(_){}
  var cached={};try{cached=JSON.parse(localStorage.getItem('luma-settings')||'{}');}catch(_){}
@@ -29,7 +29,7 @@
  function loadArtwork(){
   return Luma.exec('/usr/bin/python /media/developer/apps/usr/palm/applications/com.spinoff.lumahome/runtime/list-apps.py --artwork').then(function(raw){
    var icons=JSON.parse(raw);
-   if(!icons||typeof icons!=='object'||Array.isArray(icons))return null;
+   if(!icons||typeof icons!=='object'||Array.isArray(icons)||icons.error)return null;
    LumaLauncher.setArtwork(icons);
    return icons;
   });
@@ -38,9 +38,21 @@
   var socket=ha.ws;
   if(!catalogArtwork||!ha.ready||!ha.entryId||socket===reportedSocket)return;
   reportedSocket=socket;
-  ha.report({catalog:catalog,version:'0.4.23',setup_complete:true}).then(function(){return catalogArtwork;}).then(function(icons){
+  ha.report({catalog:catalog,version:'0.4.26',setup_complete:true}).then(function(){return catalogArtwork;}).then(function(icons){
    if(ha.ws===socket&&ha.ready&&icons&&Object.keys(icons).length)return ha.report({catalog_artwork:icons});
   }).catch(function(){if(reportedSocket===socket)reportedSocket=null;});
+ }
+ function loadCatalog(){
+  if(loadingCatalog||catalogArtwork)return;
+  loadingCatalog=true;
+  LumaRuntime.setup().then(function(){ha.connect();return LumaRuntime.catalog();}).then(function(apps){
+   catalog=apps.concat(catalog.filter(function(a){return a.id.indexOf('luma:')===0;}));
+   catalogRevision++;
+   renderApps();
+   catalogArtwork=loadArtwork().catch(function(){return null;});
+   publishCatalog();
+   loadingCatalog=false;
+  }).catch(function(e){loadingCatalog=false;say(e.message);ha.connect();});
  }
  function roomClimate(){
   var visible=[];
@@ -265,16 +277,12 @@
   handoff=false;closeRoomPanel(false);stopPreview();
   var params=launchParams(event);if(params&&params.parameters)params=params.parameters;
   $('settings').hidden=true;$('ambient').hidden=true;lastActivity=Date.now();clock();focusHome();activate();
-  if(!ha.ready)ha.connect();runAction(params);
+  if(!ha.ready)ha.connect();loadCatalog();runAction(params);
  });
  window.addEventListener('resize',resize);resize();clock();setInterval(clock,1000);
  previewEnabled=localStorage.getItem('luma-preview')!=='off';changed(states);focusHome();
- LumaRuntime.setup().then(function(){ha.connect();return LumaRuntime.catalog();}).then(function(apps){
-  catalog=apps.concat(catalog.filter(function(a){return a.id.indexOf('luma:')===0;}));catalogRevision++;renderApps();ha.connect();
-  catalogArtwork=loadArtwork().catch(function(){return null;});
-  publishCatalog();
- }).catch(function(e){say(e.message);ha.connect();});
+ loadCatalog();
  setTimeout(function(){runAction(launchParams());},0);
  // Read-only runtime status for on-device inspection; never exposes credentials.
- window.lumaStatus=function(){return {version:'0.4.23',haConnected:ha.ready,stateCount:Object.keys(states).length,pins:pins(),input:selectedInput,video:{readyState:$('inputVideo').readyState,width:$('inputVideo').videoWidth,height:$('inputVideo').videoHeight,error:$('inputVideo').error&&$('inputVideo').error.code}};};
+ window.lumaStatus=function(){return {version:'0.4.26',haConnected:ha.ready,stateCount:Object.keys(states).length,pins:pins(),input:selectedInput,video:{readyState:$('inputVideo').readyState,width:$('inputVideo').videoWidth,height:$('inputVideo').videoHeight,error:$('inputVideo').error&&$('inputVideo').error.code}};};
 })();

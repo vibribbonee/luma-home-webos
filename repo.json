@@ -13,14 +13,14 @@
       "manifest": {
         "id": "com.spinoff.lumahome",
         "title": "Luma Home Preview",
-        "version": "0.4.23",
+        "version": "0.4.26",
         "type": "web",
         "iconUri": "https://raw.githubusercontent.com/vibribbonee/luma-home-webos/lumax-preview/src/com.spinoff.lumahome/icon.png",
         "sourceUrl": "https://github.com/vibribbonee/luma-home-webos/tree/lumax-preview",
         "rootRequired": true,
-        "ipkUrl": "https://github.com/vibribbonee/luma-home-webos/releases/download/v0.4.23-preview.1/com.spinoff.lumahome_0.4.23_all.ipk",
+        "ipkUrl": "https://github.com/vibribbonee/luma-home-webos/releases/download/v0.4.26-preview.1/com.spinoff.lumahome_0.4.26_all.ipk",
         "ipkHash": {
-          "sha256": "9627f077d07a9df18c06c60f1d8187e76aa472b6a32915975b6719d3e7fa077b"
+          "sha256": "93960edd960421f3636c8834577c507d08370e495be081f816ef7e6ed35d3e35"
         },
         "appDescription": "Preview launcher and webOS remote handler"
       }
@@ -32,14 +32,14 @@
       "manifest": {
         "id": "com.spinoff.lumahome.overlay",
         "title": "Luma Home Overlay Preview",
-        "version": "0.4.23",
+        "version": "0.4.26",
         "type": "web",
         "iconUri": "https://raw.githubusercontent.com/vibribbonee/luma-home-webos/lumax-preview/src/com.spinoff.lumahome.overlay/icon.png",
         "sourceUrl": "https://github.com/vibribbonee/luma-home-webos/tree/lumax-preview",
         "rootRequired": true,
-        "ipkUrl": "https://github.com/vibribbonee/luma-home-webos/releases/download/v0.4.23-preview.1/com.spinoff.lumahome.overlay_0.4.23_all.ipk",
+        "ipkUrl": "https://github.com/vibribbonee/luma-home-webos/releases/download/v0.4.26-preview.1/com.spinoff.lumahome.overlay_0.4.26_all.ipk",
         "ipkHash": {
-          "sha256": "dee7230aad153a7ec419ceca4c3342633f994b8f0765ba9c0cc8a6ea27e70d14"
+          "sha256": "eeb7ac398e4d534e25d903dd2c9903fdaf9e914184aea209f0685cf70c2d5628"
         },
         "appDescription": "Preview Room controls, Assist, and camera overlays"
       }

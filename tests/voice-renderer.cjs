@@ -6,9 +6,10 @@ const vm = require('node:vm');
 
 const worker = fs.readFileSync(path.join(__dirname, '../tools/voice-assist.js'), 'utf8');
 
-async function runVoice({ paired, renderer }) {
+async function runVoice({ paired, renderer, played }) {
     const local = [];
     const streamer = [];
+    const speaker = [];
     class Assist extends EventEmitter {
         constructor(_socket, connection) {
             super();
@@ -17,7 +18,11 @@ async function runVoice({ paired, renderer }) {
         async connect() {}
         async call(payload) {
             if (payload.type === 'luma_home/voice/config') {
-                return { pipeline: 'fixture', stt_engine: 'speech', voice_reply: true };
+                return { pipeline: 'fixture', stt_engine: 'speech', voice_reply: true, speaker_configured: played !== undefined };
+            }
+            if (payload.type === 'luma_home/voice/reply') {
+                speaker.push(payload.media_id);
+                return { played };
             }
             streamer.push(payload);
             return { renderer };
@@ -26,6 +31,9 @@ async function runVoice({ paired, renderer }) {
             this.emit('stage', { type: 'intent-end', data: {
                 intent_output: { response: { speech: { plain: { speech: 'Fixture reply' } } } },
             } });
+            this.emit('stage', { type: 'tts-end', data: { tts_output: {
+                url: '/api/tts_proxy/test.mp3', media_id: 'media-source://tts/-stream-/test.mp3',
+            } } });
             this.emit('stage', { type: 'run-end' });
         }
         close() {}
@@ -61,7 +69,7 @@ async function runVoice({ paired, renderer }) {
         setInterval,
         clearInterval,
     }));
-    return { local, streamer };
+    return { local, streamer, speaker };
 }
 
 (async () => {
@@ -77,5 +85,16 @@ async function runVoice({ paired, renderer }) {
     const standalone = await runVoice({ paired: false, renderer: null });
     assert.equal(standalone.streamer.length, 0);
     assert.deepEqual(standalone.local.map(event => event.phase), ['starting', 'reply']);
-    console.log('Passed: single Assist renderer for paired, fallback and standalone sessions.');
+    assert.equal(standalone.local[1].audioUrl, 'http://ha.invalid/api/tts_proxy/test.mp3');
+    assert.equal(standalone.speaker.length, 0);
+
+    const delegated = await runVoice({ paired: true, renderer: 'streamer-1', played: true });
+    assert.deepEqual(delegated.speaker, ['media-source://tts/-stream-/test.mp3']);
+    assert.equal(delegated.streamer[1].audio_path, '');
+    assert.equal(delegated.streamer[1].message, 'Fixture reply');
+
+    const speakerUnavailable = await runVoice({ paired: true, renderer: null, played: false });
+    assert.equal(speakerUnavailable.speaker.length, 1);
+    assert.equal(speakerUnavailable.local[1].audioUrl, 'http://ha.invalid/api/tts_proxy/test.mp3');
+    console.log('Passed: one Assist renderer, speaker delegation, and fallback to device audio.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

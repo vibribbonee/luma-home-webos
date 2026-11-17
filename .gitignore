@@ -8,3 +8,7 @@ __pycache__/
 /dist/
 
 /android/build/
+
+/android-native/.gradle/
+/android-native/app/build/
+/android-native/local.properties

@@ -82,6 +82,12 @@ class StreamerOverlayTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(revision, lumax.artwork_revision({'two': 'art-2', 'one': 'art-1'}))
         self.assertNotEqual(revision, lumax.artwork_revision({'two': 'art-3', 'one': 'art-1'}))
 
+    def test_catalog_icons_keep_only_current_valid_artwork(self):
+        icon = 'data:image/png;base64,cG5n'
+        catalog = [{'id': 'keep'}, {'id': 'invalid'}, {'id': 'oversized'}]
+        artwork = {'keep': icon, 'removed': icon, 'invalid': 'file:///local/icon.png', 'oversized': icon * 3000}
+        self.assertEqual(lumax.catalog_icons(catalog, artwork), {'keep': icon})
+
     def test_home_handoff_recognizes_an_already_active_input(self):
         self.assertTrue(lumax.is_active_input('HDMI_1', self.settings, 1))
         self.assertTrue(lumax.is_active_input('Google TV', self.settings, 1))
@@ -101,6 +107,24 @@ class StreamerOverlayTest(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(active('off', {'app_id': 'com.webos.app.hdmi1'}, self.settings))
         ambiguous = {**self.settings, 'hdmi2': 'Google TV'}
         self.assertIsNone(active('on', {'source': 'Google TV'}, ambiguous))
+
+    def test_visual_routing_requires_a_reachable_powered_on_tv(self):
+        for state in (None, 'off', 'unavailable', 'unknown'):
+            with self.subTest(state=state):
+                self.assertFalse(lumax.tv_can_render(state))
+                self.assertIsNone(lumax.active_streamer_input(state, {'app_id': 'com.webos.app.hdmi1'}, self.settings))
+        self.assertTrue(lumax.tv_can_render('on'))
+
+    def test_assist_reply_speaker_respects_room_and_power_settings(self):
+        speaker = 'media_player.room_speaker'
+        settings = {'voice_reply': True, 'voice_reply_speaker': speaker, 'voice_reply_output': 'tv_off'}
+        self.assertEqual(lumax.assist_reply_speaker(settings, 'off'), speaker)
+        self.assertEqual(lumax.assist_reply_speaker(settings, 'unavailable'), speaker)
+        self.assertEqual(lumax.assist_reply_speaker(settings, 'on'), '')
+        self.assertEqual(lumax.assist_reply_speaker({**settings, 'voice_reply_output': 'always'}, 'on'), speaker)
+        self.assertEqual(lumax.assist_reply_speaker(settings, 'on', streamer_only=True), speaker)
+        self.assertEqual(lumax.assist_reply_speaker({**settings, 'voice_reply': False}, 'off'), '')
+        self.assertEqual(lumax.assist_reply_speaker({**settings, 'voice_reply_speaker': ''}, 'off'), '')
 
     def test_native_remote_requires_a_known_view_other_than_the_streamer(self):
         target = lumax.native_remote_target

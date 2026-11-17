@@ -12,9 +12,13 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.helpers.storage import Store
 from .const import APP,OVERLAY,DOMAIN,settings,validate_patch
-from .lumax import QuickPanel, StreamerOverlay, active_streamer_input, artwork_revision, catalog_entries, native_remote_target, overlay_tv_attributes
+from .lumax import QuickPanel, StreamerOverlay, active_streamer_input, artwork_revision, catalog_entries, catalog_icons, native_remote_target, overlay_tv_attributes, tv_can_render
 _LOGGER=logging.getLogger(__name__)
 NAVIGATION_KEYS = {'left': 'LEFT', 'right': 'RIGHT', 'up': 'UP', 'down': 'DOWN', 'ok': 'ENTER', 'back': 'BACK'}
+TV_RUNTIME_SETTINGS = {
+    'lumax_enabled', 'lumax_input', 'home_button', 'home_swap', 'microphone', 'no_signal', 'screensaver',
+    'voice_mode', 'voice_listen_seconds', 'voice_silence_seconds', 'voice_start_seconds', 'voice_reply', 'voice_pipeline',
+}
 
 def tv_catalog_store(hass, entry_id):
     return Store(hass, 1, f'{DOMAIN}.catalog.{entry_id}')
@@ -46,6 +50,9 @@ class LumaTV:
         if isinstance(saved, dict) and isinstance(saved.get('catalog'), list):
             self.catalog = catalog_entries(saved['catalog'])
             self.catalog_ready = True
+            if isinstance(saved.get('catalog_artwork'), dict):
+                self.catalog_artwork = catalog_icons(self.catalog, saved['catalog_artwork'])
+                self.artwork_version = artwork_revision(self.catalog_artwork)
     @property
     def tv_id(self):return self.entry.unique_id
     @property
@@ -74,10 +81,10 @@ class LumaTV:
         self.publish()
         self.publish_remote_target()
     def snapshot(self):
-        return {'entry_id':self.entry.entry_id,'tv_id':self.tv_id,'name':self.entry.title,'streamer_only':self.streamer_only,'settings':self.config,'catalog':deepcopy(self.catalog),'catalog_ready':self.catalog_ready,'artwork_version':self.artwork_version,'status':dict(self.status),'integration_version':'0.4.23','quick_hold_confirm':True,'clock':{'utc_ms':int(datetime.now(timezone.utc).timestamp()*1000),'time_zone':self.hass.config.time_zone}}
+        return {'entry_id':self.entry.entry_id,'tv_id':self.tv_id,'name':self.entry.title,'streamer_only':self.streamer_only,'settings':self.config,'catalog':deepcopy(self.catalog),'catalog_ready':self.catalog_ready,'artwork_version':self.artwork_version,'status':dict(self.status),'integration_version':'0.4.26','quick_hold_confirm':True,'clock':{'utc_ms':int(datetime.now(timezone.utc).timestamp()*1000),'time_zone':self.hass.config.time_zone}}
     async def update(self,patch,*,push=True):
         checked=validate_patch(patch);self.hass.config_entries.async_update_entry(self.entry,options=self.config|checked);self.config_changed()
-        if push and any(k.startswith('voice_') or k in ('lumax_enabled','lumax_input','home_button','home_swap','microphone','no_signal','screensaver') for k in checked):
+        if push and TV_RUNTIME_SETTINGS.intersection(checked):
             await self.configure_tv()
         return self.snapshot()
     async def tv_request(self, command, payload, *, return_response=False):
@@ -95,7 +102,7 @@ class LumaTV:
         if self.streamer_only:
             return
         cfg=self.config
-        runtime={k:cfg[k] for k in cfg if k.startswith('voice_') or k in ('lumax_enabled','lumax_input','home_button','home_swap','microphone','no_signal','screensaver')}
+        runtime={key: cfg[key] for key in TV_RUNTIME_SETTINGS}
         await self.command({'configure':{'tv_id':self.tv_id,'settings':runtime},'background':True},overlay=True)
     async def open(self,view='home',tab='pins'):
         if view in ('home', 'quick') and self.quick_panel.send('close'):
@@ -224,10 +231,8 @@ class LumaTV:
             return None
         if renderer is None:
             state = self.hass.states.get(self.entity_id)
-            if state and state.state == 'off':
+            if not tv_can_render(state.state if state else None):
                 return 'audio_only'
-            if state is None or state.state in ('unavailable', 'unknown'):
-                return None
             if active_streamer_input(state.state, await self.overlay_attributes(state), config) is not None:
                 return None
         elif renderer != 'webos':
@@ -321,26 +326,23 @@ class LumaTV:
                 self.catalog = catalog
                 self.catalog_ready = True
                 changed = True
-                if self.catalog_store:
-                    self.catalog_store.async_delay_save(lambda: {'catalog': self.catalog}, 2)
         artwork = data.get('catalog_artwork')
-        if isinstance(artwork, dict):
-            sanitized = {}
-            total = 0
-            for app in self.catalog:
-                icon = artwork.get(app['id'])
-                if not isinstance(icon, str) or not icon.startswith('data:image/png;base64,') or len(icon) > 54000:
-                    continue
-                total += len(icon)
-                if total > 700000:
-                    break
-                sanitized[app['id']] = icon
-            if sanitized != self.catalog_artwork or not self.artwork_version:
+        has_artwork = isinstance(artwork, dict)
+        if changed or has_artwork:
+            sanitized = catalog_icons(self.catalog, artwork if has_artwork else self.catalog_artwork)
+            if sanitized != self.catalog_artwork or (has_artwork and not self.artwork_version):
                 self.catalog_artwork = sanitized
                 self.artwork_version = artwork_revision(sanitized)
                 changed = True
-        if changed:self.config_changed()
-        else:self.publish()
+        if changed:
+            if self.catalog_store:
+                self.catalog_store.async_delay_save(lambda: {
+                    'catalog': self.catalog,
+                    **({'catalog_artwork': self.catalog_artwork} if self.artwork_version else {}),
+                }, 2)
+            self.config_changed()
+        else:
+            self.publish()
     def start(self):
         @callback
         def changed(event):

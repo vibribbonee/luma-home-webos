@@ -29,6 +29,8 @@ Tested on LG UP78 (43UP78006LB), webOS 6.3.2-425.
 
 The Streamer setup works with an Android TV or Google TV device connected to any HDMI display.
 
+The current [LumaX preview release](https://github.com/vibribbonee/luma-home-webos/releases/tag/v0.4.26-preview.1) includes the Streamer APK, both webOS packages and the matching Home Assistant integration. See [Streamer setup and source](android-native/README.md).
+
 1. Add the Streamer to Home Assistant using **Android TV Remote**.
 2. In **Settings → Devices & services → Add integration → Luma Home**, choose **Android TV or Google TV Streamer**. Select its remote entity, then choose the Home Assistant area for Assist.
 3. In **LumaX settings**, connect to Home Assistant and choose the room under **Luma Home room**. Enable **Home button shortcuts** to show Room controls while another Streamer app is playing.
@@ -47,6 +49,7 @@ To hide a tile on the Streamer, hold OK and select **Hide app**. Restore it unde
 
 ## Use it with Home Assistant
 
+- **Reply speaker** — In the Luma Home settings card, choose an Assist reply speaker. Use it when the paired TV is off or for every reply. Choose Device audio to switch back.
 - **Voice** — Turn on **Home Assistant microphone** in **System & voice** and choose an Assist pipeline on the Luma Home device page.
 - **Notifications** — Use `luma_home.notify` for a text overlay or `assist_satellite.announce` for a spoken announcement with text.
 - **Cameras** — Use `luma_home.show_camera` with a camera entity to show a timed overlay.

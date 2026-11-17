@@ -51,9 +51,11 @@ def main():
     try:
         response = json.loads(raw)
     except ValueError:
-        print(json.dumps(result))
+        response = None
+    if not isinstance(response, dict) or response.get('returnValue') is False or not isinstance(response.get('apps'), list):
+        print(json.dumps({'error': 'Could not read installed LG apps.'}))
         return
-    for item in response.get('apps', []):
+    for item in response['apps']:
         if not item.get('id') or item.get('visible') is False:
             continue
         if artwork:
