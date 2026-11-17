@@ -20,6 +20,9 @@ const root=path.resolve(__dirname,'..');const boot=JSON.parse(fs.readFileSync(ro
  assert(watched.includes('light.test')&&watched.includes('switch.test')&&watched.length<30,'scoped subscription');
  await page.locator('[data-dim]').focus();
  await page.keyboard.press('Enter');
+ assert.equal(await page.locator('.quick-title').innerText(),'Test light','adjustments use the light name on both platforms');
+ assert.equal(await page.locator('.quick-light input').count(),2,'brightness and supported warmth share one detail panel');
+ assert.equal(await page.locator('.quick-controls').isVisible(),false,'the overview does not stack behind the light panel');
  await page.keyboard.press('ArrowRight');
  await page.waitForFunction(()=>window.calls.some(c=>c.service==='turn_on'&&c.service_data.brightness_pct===60));
  assert.equal(await page.evaluate(()=>document.activeElement.dataset.light),'light.test','Left/Right adjusts the focused slider');

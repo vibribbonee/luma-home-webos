@@ -325,7 +325,11 @@ public class HomeKeyService extends AccessibilityService {
             powerOnUntil = 0;
         }
         if (consumeVolumeKeys && VolumeKeys.handle(this, event)) return true;
-        if (lumaOverlay != null && lumaOverlay.relayKey(event)) return true;
+        // Opening the LG panel during a hold must not let that same hold's
+        // repeats close it, or swallow the release that finishes our gesture.
+        if (lumaOverlay != null
+                && (event.getKeyCode() != KeyEvent.KEYCODE_HOME || !lumaHomePressed)
+                && lumaOverlay.relayKey(event)) return true;
         if (lumaOverlay != null && event.getKeyCode() == KeyEvent.KEYCODE_HOME) {
             if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
                 lumaDismissPressed = lumaOverlay.closeControls();
@@ -334,16 +338,20 @@ public class HomeKeyService extends AccessibilityService {
                 if (event.getAction() == KeyEvent.ACTION_UP) lumaDismissPressed = false;
                 return true;
             }
-            if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+            if (event.getAction() == KeyEvent.ACTION_DOWN && !lumaHomePressed) {
                 lumaHomePressed = true;
                 lumaHomeHeld = false;
                 lumaTapOpensHome = lumaOverlay.tapOpensHome();
                 handler.removeCallbacks(holdLumaHome);
-                handler.postDelayed(holdLumaHome, LUMA_HOME_HOLD_MS);
+                long elapsed = Math.max(0, event.getEventTime() - event.getDownTime());
+                handler.postDelayed(holdLumaHome, Math.max(0, LUMA_HOME_HOLD_MS - elapsed));
             } else if (event.getAction() == KeyEvent.ACTION_UP && lumaHomePressed) {
                 handler.removeCallbacks(holdLumaHome);
                 lumaHomePressed = false;
                 if (!lumaHomeHeld && !event.isCanceled()) runLumaHomeGesture(false);
+            } else if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) {
+                lumaTapOpensHome = lumaOverlay.tapOpensHome();
+                runLumaHomeGesture(event.getEventTime() - event.getDownTime() >= LUMA_HOME_HOLD_MS);
             }
             return true;
         }

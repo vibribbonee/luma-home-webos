@@ -38,7 +38,7 @@
   var socket=ha.ws;
   if(!catalogArtwork||!ha.ready||!ha.entryId||socket===reportedSocket)return;
   reportedSocket=socket;
-  ha.report({catalog:catalog,version:'0.4.26',setup_complete:true}).then(function(){return catalogArtwork;}).then(function(icons){
+  ha.report({catalog:catalog,version:'0.4.27',setup_complete:true}).then(function(){return catalogArtwork;}).then(function(icons){
    if(ha.ws===socket&&ha.ready&&icons&&Object.keys(icons).length)return ha.report({catalog_artwork:icons});
   }).catch(function(){if(reportedSocket===socket)reportedSocket=null;});
  }
@@ -284,5 +284,5 @@
  loadCatalog();
  setTimeout(function(){runAction(launchParams());},0);
  // Read-only runtime status for on-device inspection; never exposes credentials.
- window.lumaStatus=function(){return {version:'0.4.26',haConnected:ha.ready,stateCount:Object.keys(states).length,pins:pins(),input:selectedInput,video:{readyState:$('inputVideo').readyState,width:$('inputVideo').videoWidth,height:$('inputVideo').videoHeight,error:$('inputVideo').error&&$('inputVideo').error.code}};};
+ window.lumaStatus=function(){return {version:'0.4.27',haConnected:ha.ready,stateCount:Object.keys(states).length,pins:pins(),input:selectedInput,video:{readyState:$('inputVideo').readyState,width:$('inputVideo').videoWidth,height:$('inputVideo').videoHeight,error:$('inputVideo').error&&$('inputVideo').error.code}};};
 })();

@@ -1,7 +1,7 @@
 (function(){
  'use strict';
  var helpers=window.LUMA_BOOTSTRAP.helpers,ha,root,activity=Date.now(),closed=false;
- var relay=null,relayTimer=0,relayAttempt=null,lightPress=null;
+ var relay=null,relayTimer=0,relayAttempt=null,lightPress=null,lightCard=null,lightPanel=null;
  var remoteKeyCodes={left:37,up:38,right:39,down:40,ok:13,back:461};
  function watchList(s){var x=s[helpers.controls];var ids=Luma.list(x&&x.state||'[]');
   ['temperature','humidity','co2'].forEach(function(key){var state=s[helpers[key]];if(state&&state.state)ids.push(state.state);});return ids;}
@@ -63,18 +63,41 @@
  function selectLight(card,held){
   var reverse=value('reverse_light_keys','off')==='on';
   if(held!==reverse){toggleControl(card);return;}
-  var input=card.querySelector('input:not(:disabled)');
-  if(input)LumaNav.focus(input);
+  lightCard=card;
+  lightPanel=el('div','quick-light');
+  LumaLights.attach(lightPanel,card.dataset.entity,function(){return ha;},function(e){root.querySelector('.quick-status').textContent=e.message;},true);
+  lightPanel.appendChild(lightPanel.querySelector('.light-actions'));
+  root.querySelector('.quick-controls').hidden=true;
+  root.querySelector('.quick-label').hidden=true;
+  root.querySelector('.quick-climate').hidden=true;
+  root.querySelector('.quick-local-actions').hidden=true;
+  root.appendChild(lightPanel);
+  root.querySelector('.quick-title').textContent=ha.states[card.dataset.entity].attributes.friendly_name||card.dataset.entity;
+  root.querySelector('.overlay-close').onclick=backToControls;
+  LumaNav.focus(lightPanel.querySelector('input'));
+ }
+ function backToControls(){
+  if(!lightPanel)return;
+  var previous=lightCard;lightPanel.remove();lightPanel=null;lightCard=null;
+  root.querySelector('.quick-controls').hidden=false;
+  root.querySelector('.quick-label').hidden=false;
+  root.querySelector('.overlay-close').onclick=close;
+  update();if(previous&&document.contains(previous))LumaNav.focus(previous);
+
  }
  function update(){
   syncRelay();
-  root.querySelector('.quick-local-actions').hidden=!!(ha.config&&ha.config.lumax_enabled);
+  if(ha.config){
+   var paired=!!ha.config.lumax_enabled;
+   root.querySelector('.quick-local-actions').hidden=paired||!!lightPanel;
+   try{localStorage.setItem('luma-quick-paired',String(paired));}catch(_){}
+  }
   var ids=Luma.list(value('controls','[]')),container=root.querySelector('.quick-controls'),bookmark=LumaNav.bookmark(container);
   root.querySelector('.quick-empty').hidden=ids.length!==0||!ha.ready;
-  var signature=JSON.stringify([ids,ids.map(function(i){var q=ha.states[i];return !!(i.indexOf('light.')===0&&q&&(q.attributes.supported_color_modes||[]).some(function(m){return m!=='onoff';}));})]);if(container.dataset.ids!==signature){container.innerHTML='';container.dataset.ids=signature;ids.forEach(function(id){var b=el('div','quick-button');b.tabIndex=0;b.setAttribute('role','button');b.dataset.navCard='';b.appendChild(el('span','quick-button-label'));b.onclick=function(e){if(e&&e.target.closest('input,label,.light-actions'))return;if(b.dataset.dim)selectLight(b,false);else toggleControl(b);};b.insertBefore(LumaIcons.icon(LumaIcons.control(id,ha.states[id])),b.firstChild);b.dataset.entity=id;var st=ha.states[id];if(id.indexOf('light.')===0&&st&&(st.attributes.supported_color_modes||[]).some(function(m){return m!=='onoff';})){b.dataset.dim='1';b.insertBefore(el('span','fill'),b.firstChild);LumaLights.attach(b,id,function(){return ha;},function(e){root.querySelector('.quick-status').textContent=e.message;},true);b.addEventListener('wheel',function(e){e.preventDefault();dimBy(id,e.deltaY<0?10:-10);});}container.appendChild(b);});}
+  var signature=JSON.stringify([ids,ids.map(function(i){var q=ha.states[i];return !!(i.indexOf('light.')===0&&q&&(q.attributes.supported_color_modes||[]).some(function(m){return m!=='onoff';}));})]);if(container.dataset.ids!==signature){container.innerHTML='';container.dataset.ids=signature;ids.forEach(function(id){var b=el('div','quick-button');b.tabIndex=0;b.setAttribute('role','button');b.dataset.navCard='';b.appendChild(el('span','quick-button-label'));b.onclick=function(e){if(e&&e.target.closest('input,label,.light-actions'))return;if(b.dataset.dim)selectLight(b,false);else toggleControl(b);};b.insertBefore(LumaIcons.icon(LumaIcons.control(id,ha.states[id])),b.firstChild);b.dataset.entity=id;var st=ha.states[id];if(id.indexOf('light.')===0&&st&&(st.attributes.supported_color_modes||[]).some(function(m){return m!=='onoff';})){b.dataset.dim='1';b.insertBefore(el('span','fill'),b.firstChild);b.addEventListener('wheel',function(e){e.preventDefault();dimBy(id,e.deltaY<0?10:-10);});}container.appendChild(b);});}
   container.querySelectorAll('[data-entity]').forEach(function(b){var s=ha.states[b.dataset.entity];var held=dimHold[b.dataset.entity]&&Date.now()<dimHold[b.dataset.entity].until,pct=held?dimHold[b.dataset.entity].pct:(ha.ready&&s&&s.state==='on'?level(s):0);if(b.dataset.dim){var fill=b.querySelector('.fill');fill.style.width=pct+'%';fill.style.opacity=pct>0?'1':'0';}b.querySelector('.quick-button-label').textContent=(s&&s.attributes.friendly_name||b.dataset.entity)+'  ·  '+(ha.ready&&s?(b.dataset.dim&&(s.state==='on'||(held&&pct>0))?pct+'%':s.state):'Unavailable');b.setAttribute('aria-pressed',String(ha.ready&&s&&s.state==='on'));});
   LumaLights.update(root,ha);LumaNav.restore(container,bookmark);
-  root.querySelector('.quick-title').textContent=value('room','Home');
+  root.querySelector('.quick-title').textContent=lightCard?(ha.states[lightCard.dataset.entity].attributes.friendly_name||lightCard.dataset.entity):value('room','Home');
   var climate=root.querySelector('.quick-climate'),readings=[];
   if(value('climate','on')!=='off'){
    [['temperature','Temperature','thermometer'],['humidity','Humidity','droplets'],['co2','Carbon dioxide','wind']].forEach(function(item){
@@ -97,8 +120,8 @@
     row.appendChild(el('span','',reading.value));
     climate.appendChild(row);
    });
-   climate.hidden=!readings.length;
   }
+  climate.hidden=!readings.length||!!lightPanel;
  }
  function buildQuick(){
   root=el('aside','quick-panel');root.id='quickPanel';
@@ -115,6 +138,8 @@
   var empty=el('p','quick-empty','Choose room controls in Settings.');empty.hidden=true;root.appendChild(empty);
   var controls=el('div','quick-controls');controls.dataset.navZone='quick-controls';root.appendChild(controls);
   var local=el('div','quick-local-actions');
+  local.hidden=true;
+  try{local.hidden=localStorage.getItem('luma-quick-paired')!=='false';}catch(_){}
   var inputs=el('div','quick-inputs');inputs.dataset.navZone='quick-inputs';
   inputs.appendChild(button('HDMI 1',function(){launch('com.webos.app.hdmi1');},'monitor'));
   inputs.appendChild(button('HDMI 2',function(){launch('com.webos.app.hdmi2');},'monitor'));
@@ -130,6 +155,7 @@
  }
  window.startLumaQuick=function(){
   if(!root)buildQuick();
+  if(lightPanel)backToControls();
   root.hidden=false;closed=false;activity=Date.now();
   if(!ha){
    ha=new Luma.HA(null,update,function(status){
@@ -141,9 +167,14 @@
   }else{update();if(!ha.ready)ha.connect();}
   root.querySelector('button').focus();
  };
- window.lumaOverlayStatus=function(){return {version:'0.4.26',quickOpen:!!window.lumaQuickOpen,visible:!document.hidden,haConnected:!!(ha&&ha.ready)};};window.closeLumaQuick=close;
+ window.lumaOverlayStatus=function(){return {version:'0.4.27',quickOpen:!!window.lumaQuickOpen,visible:!document.hidden,haConnected:!!(ha&&ha.ready)};};window.closeLumaQuick=close;
  window.suspendLumaQuick=suspend;
- function handleKey(e){if(!root||root.hidden||!root.contains(document.activeElement))return false;activity=Date.now();if(LumaNav.handle(e,root))return true;if([27,461].indexOf(e.keyCode)>=0){e.preventDefault();e.stopImmediatePropagation();close();return true;}return false;}
+ function handleKey(e){if(!root||root.hidden||!root.contains(document.activeElement))return false;activity=Date.now();if(lightPanel){
+  if([27,461].indexOf(e.keyCode)>=0){e.preventDefault();e.stopImmediatePropagation();backToControls();return true;}
+  var active=document.activeElement;
+  if((e.keyCode===37||e.keyCode===39)&&active.type==='range'){LumaLights.adjust(lightPanel,e.keyCode===39?1:-1,active);e.preventDefault();e.stopImmediatePropagation();return true;}
+  if(e.keyCode===38||e.keyCode===40){var fields=[root.querySelector('.overlay-close')].concat(Array.from(lightPanel.querySelectorAll('input,button'))),index=fields.indexOf(active);LumaNav.focus(fields[(index+(e.keyCode===40?1:-1)+fields.length)%fields.length]);e.preventDefault();e.stopImmediatePropagation();return true;}
+ }if(LumaNav.handle(e,root))return true;if([27,461].indexOf(e.keyCode)>=0){e.preventDefault();e.stopImmediatePropagation();close();return true;}return false;}
  document.addEventListener('keydown',function(e){
   var active=document.activeElement;
   if(e.keyCode===13&&root&&!root.hidden&&root.contains(active)&&active.dataset.dim){
@@ -159,7 +190,7 @@
   e.preventDefault();e.stopImmediatePropagation();
   selectLight(press.card,Date.now()-press.started>=650);
  });
- document.addEventListener('visibilitychange',function(){if(document.hidden&&root&&!root.hidden) suspend();else syncRelay();});
+ document.addEventListener('visibilitychange',function(){if(document.hidden){setTimeout(function(){if(document.hidden&&root&&!root.hidden)suspend();else syncRelay();},50);}else syncRelay();});
  window.addEventListener('blur',function(){
   if(!root||root.hidden)return;
   suspend();

@@ -4,6 +4,22 @@
 set -eu
 ROOT=/var/lib/webosbrew/lumahome
 STUB=/var/lib/webosbrew/lifesgoodwithoutspying.stub
+restore_assistant_block(){
+ for target in /usr/sbin/voiceconductor /var/palm/jail/com.webos.service.voice.performer/usr/sbin/voiceconductor; do
+  [ -f "$target" ] || continue
+  grep -Fxq "voice.stop $target" /var/lib/webosbrew/lifesgoodwithoutspying.stubbed || continue
+  if [ "$(stat -c '%d:%i' "$target")" != "$(stat -c '%d:%i' "$STUB")" ]; then
+   mount --bind "$STUB" "$target"
+  fi
+ done
+ test "$(stat -c '%d:%i' /usr/sbin/voiceconductor)" = "$(stat -c '%d:%i' "$STUB")"
+ for assistant_pid in $(pidof voiceconductor 2>/dev/null || true); do
+  case "$(readlink "/proc/$assistant_pid/exe" 2>/dev/null || true)" in
+   /usr/sbin/voiceconductor|/var/palm/jail/com.webos.service.voice.performer/usr/sbin/voiceconductor)
+    kill "$assistant_pid" 2>/dev/null || true ;;
+  esac
+ done
+}
 block(){
  [ -f "$ROOT/voice-restore" ] || return 0
  while read -r target; do
@@ -21,7 +37,7 @@ case "${1:-warm}" in
   ;;
  warm)
   [ -f "$ROOT/voice.enabled" ] || exit 0
-  test "$(stat -c '%d:%i' /usr/sbin/voiceconductor)" = "$(stat -c '%d:%i' "$STUB")"
+  restore_assistant_block
   if pidof voiceinput >/dev/null 2>&1; then block;touch "$ROOT/mic-ready";exit 0;fi
   : > "$ROOT/voice-restore"
   trap block EXIT INT TERM

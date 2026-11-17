@@ -43,6 +43,7 @@ final class LumaRemoteOverlay {
     private String address, token, tv;
     private int port;
     private boolean connecting;
+    private boolean pendingControls;
     private boolean webosQuickActive;
     private boolean webosHoldConfirm;
     private boolean webosNativeTarget;
@@ -51,9 +52,14 @@ final class LumaRemoteOverlay {
     private final Set<Integer> relayedKeys = new HashSet<>();
     private final Map<Integer, Long> confirmations = new HashMap<>();
     private final Runnable reconnect = this::connect;
+    private final Runnable controlsTimeout;
 
     LumaRemoteOverlay(HomeKeyService service) {
         context = service;
+        controlsTimeout = () -> {
+            pendingControls = false;
+            Toast.makeText(context, "Room controls could not connect to Home Assistant.", Toast.LENGTH_SHORT).show();
+        };
         options = service.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         ContextThemeWrapper theme = new ContextThemeWrapper(service, R.style.Theme_TvHome);
         controls = new LumaRoomControls(theme, socket, true);
@@ -96,7 +102,10 @@ final class LumaRemoteOverlay {
         connecting = true;
         socket.open(address, token, () -> {
             connecting = false;
-            if (tv.isEmpty()) return;
+            if (tv.isEmpty()) {
+                openPendingControls();
+                return;
+            }
             socket.request("luma_home/config/get", json("tv_id", tv), this::receiveConfig);
             socket.subscribe("luma_home/config/subscribe", json("tv_id", tv), ignored -> { }, this::receiveConfig);
             subscribe();
@@ -128,6 +137,7 @@ final class LumaRemoteOverlay {
         shared = settings(snapshot);
         streamerOnly = snapshot.optBoolean("streamer_only");
         if (streamerInput() != previous) main.post(reconnect);
+        else openPendingControls();
     }
 
     private boolean paired() { return !tv.isEmpty() && shared.optBoolean("lumax_enabled"); }
@@ -239,6 +249,11 @@ final class LumaRemoteOverlay {
     }
 
     boolean closeControls() {
+        if (pendingControls) {
+            pendingControls = false;
+            main.removeCallbacks(controlsTimeout);
+            return true;
+        }
         if (!controls.isShowing()) return false;
         controls.close();
         return true;
@@ -251,10 +266,24 @@ final class LumaRemoteOverlay {
 
     void showControls() {
         if (!socket.isReady()) {
-            if (!connecting && !token.isEmpty()) connect();
-            Toast.makeText(context, "Home Assistant is offline.", Toast.LENGTH_SHORT).show();
+            if (token.isEmpty()) {
+                Toast.makeText(context, "Connect Home Assistant first.", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            pendingControls = true;
+            main.removeCallbacks(controlsTimeout);
+            main.postDelayed(controlsTimeout, 6500);
+            if (!connecting) connect();
+            Log.d(TAG, "Room controls waiting for Home Assistant");
         } else if (paired()) route("quick", this::show);
         else show();
+    }
+
+    private void openPendingControls() {
+        if (!pendingControls) return;
+        pendingControls = false;
+        main.removeCallbacks(controlsTimeout);
+        showControls();
     }
 
     void assist() {
@@ -275,6 +304,7 @@ final class LumaRemoteOverlay {
     }
 
     void close() {
+        pendingControls = false;
         credentials.unregisterOnSharedPreferenceChangeListener(changed);
         main.removeCallbacksAndMessages(null);
         controls.close();

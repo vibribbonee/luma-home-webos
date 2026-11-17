@@ -351,10 +351,10 @@ final class LumaHome {
 
     private void showSidePanel(AlertDialog.Builder builder) {
         AlertDialog dialog = builder.create();
-        dialog.show();
         Window window = dialog.getWindow();
-        if (window == null) return;
-        LumaPanel.sideSheet(activity, window);
+        if (window != null) LumaPanel.sideSheet(activity, window);
+        dialog.show();
+        if (window != null) LumaPanel.sideSheet(activity, window);
         if (dialog.getListView() != null) dialog.getListView().setSelector(R.drawable.luma_panel_focus);
     }
 

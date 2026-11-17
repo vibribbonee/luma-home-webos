@@ -252,7 +252,7 @@ final class LumaRoomControls {
         boolean on = "on".equals(state.optString("state"));
         LinearLayout content = new LinearLayout(activity);
         content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(dp(26), dp(18), dp(26), dp(18));
+        content.setPadding(px(34), px(14), px(34), px(34));
         SeekBar focus = addSlider(content, "Brightness", "%", 0, 100, 10,
                 on ? brightness(state) : 0, percent -> {
             if (percent == 0) runControl(id, "turn_off", json("entity_id", id));
@@ -268,12 +268,32 @@ final class LumaRoomControls {
                         kelvin -> runControl(id, "turn_on", json("entity_id", id, "color_temp_kelvin", kelvin)));
             }
         }
-        showSidePanel(LumaPanel.dialog(activity).setTitle(entityLabel(state)).setView(content)
-                .setNeutralButton(on ? "On" : "Off", (dialog, button) -> {
-                    main.removeCallbacksAndMessages(null);
-                    runControl(id, "toggle", json("entity_id", id));
-                })
-                .setPositiveButton("Done", null));
+        LinearLayout title = new LinearLayout(activity);
+        title.setPadding(px(34), px(34), px(34), px(12));
+        TextView name = new TextView(activity);
+        name.setText(entityLabel(state));
+        LumaPanel.text(name, 39, LumaPanel.TEXT);
+        title.addView(LumaPanel.heading(activity, name,
+                LumaPanel.closeButton(activity, "Back to Room controls", () -> {
+                    close();
+                    back.run();
+                })));
+        Button power = new Button(activity);
+        LumaPanel.text(power, 26, LumaPanel.TEXT);
+        power.setText(on ? "On" : "Off");
+        power.setAllCaps(false);
+        power.setGravity(Gravity.CENTER_VERTICAL);
+        power.setPadding(px(20), px(12), px(20), px(12));
+        power.setBackground(LumaPanel.shape(activity, LumaPanel.CONTROL, 18, 0x28ffffff, 1));
+        LinearLayout.LayoutParams powerSize = new LinearLayout.LayoutParams(-1, px(66));
+        powerSize.topMargin = px(28);
+        content.addView(power, powerSize);
+        power.setOnClickListener(view -> runControl(id, "toggle", json("entity_id", id), () -> {
+            boolean enabled = !"on".equals(state.optString("state"));
+            LumaSocket.put(state, "state", enabled ? "on" : "off");
+            power.setText(enabled ? "On" : "Off");
+        }));
+        showSidePanel(LumaPanel.dialog(activity).setCustomTitle(title).setView(content));
         panel.setOnDismissListener(dialog -> {
             visibilityChanged.run();
             main.postDelayed(back, 250);
@@ -304,9 +324,15 @@ final class LumaRoomControls {
         slider.setContentDescription(label);
         slider.setFocusable(true);
         level.setText(label + " · " + (slider.getProgress() + min) + unit);
-        level.setTextSize(20);
+        LumaPanel.text(level, 26, LumaPanel.TEXT);
+        slider.setThumbTintList(android.content.res.ColorStateList.valueOf(LumaPanel.TEXT));
+        slider.setProgressTintList(android.content.res.ColorStateList.valueOf(LumaPanel.TEXT));
+        slider.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(0x40ffffff));
         content.addView(level);
-        content.addView(slider);
+        LinearLayout.LayoutParams sliderSize = new LinearLayout.LayoutParams(-1, px(48));
+        sliderSize.topMargin = px(6);
+        sliderSize.bottomMargin = px(20);
+        content.addView(slider, sliderSize);
         Runnable apply = () -> onChange.accept(slider.getProgress() + min);
         slider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override public void onProgressChanged(SeekBar view, int progress, boolean fromUser) {
@@ -352,6 +378,7 @@ final class LumaRoomControls {
         Window window = panel.getWindow();
         if (window == null) return panel;
         if (overlay) window.setType(WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY);
+        LumaPanel.sideSheet(activity, window);
         panel.show();
         LumaPanel.sideSheet(activity, window);
         if (panel.getListView() != null) panel.getListView().setSelector(R.drawable.luma_panel_focus);

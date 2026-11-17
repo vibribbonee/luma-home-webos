@@ -82,3 +82,14 @@
 .quick-status { margin: 12px 0 0; color: var(--muted); font-size: 16px; line-height: 1.3; }
 
 .quick-empty { margin: 0; color: var(--muted); font-size: 23px; }
+
+.quick-light { flex: 1; overflow: auto; padding-top: 14px; }
+.quick-light .light-slider { margin: 0 0 28px; }
+.quick-light .slider-caption { color: var(--text); font-size: 26px; opacity: 1; }
+.quick-light .light-slider input { height: 12px; margin: 18px 0; }
+.quick-light .light-actions { display: block; margin-top: 28px; }
+.quick-light .light-actions button {
+    width: 100%; min-height: 66px; padding: 12px 20px !important;
+    font-size: 26px !important; border-radius: 18px !important;
+    background: var(--control); text-align: left;
+}
