@@ -11,7 +11,7 @@ exports.setup=({boot,catalogDelayMs=0,discoveryDelayMs=0,climate=false,catalogAr
   }
   for(const [key,id] of Object.entries(boot.helpers))states[id]={entity_id:id,state:key==='tiles'?'{}':key==='tilesize'?'Standard':'legacy',attributes:{}};
   const config=()=>({clock:{utc_ms:Date.UTC(2026,9,30,12,34,0),time_zone:'Europe/Amsterdam'},entry_id:'bedroom',tv_id:'tv-stable-id',settings:{...settings},catalog:boot.catalog});
-  window.calls=[];window.commands=[];window.fullSnapshots=0;window.sockets=[];
+  window.mockStates=states;window.calls=[];window.commands=[];window.fullSnapshots=0;window.sockets=[];
   window.catalogUnavailable=catalogUnavailable;
   window.PalmServiceBridge=class{call(uri,raw){
    const p=JSON.parse(raw),r={returnValue:true};

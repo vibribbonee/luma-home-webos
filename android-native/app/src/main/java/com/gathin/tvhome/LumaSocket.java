@@ -26,6 +26,8 @@ final class LumaSocket {
     private volatile WebSocket socket;
     private int nextId;
     private boolean ready;
+    private volatile long lastReply;
+    private Runnable watchdog;
 
     static URI endpoint(String address) {
         URI uri = URI.create(address.trim());
@@ -42,8 +44,25 @@ final class LumaSocket {
         close();
         try {
             socket = new WebSocketFactory().setConnectionTimeout(5000).createSocket(endpoint(address));
+            WebSocket opening = socket;
+            lastReply = android.os.SystemClock.elapsedRealtime();
+            watchdog = new Runnable() {
+                @Override public void run() {
+                    if (opening != socket) return;
+                    long silence = android.os.SystemClock.elapsedRealtime() - lastReply;
+                    if (silence > (ready ? 45000 : 15000)) {
+                        close();
+                        closed.accept("Home Assistant is offline.");
+                    } else main.postDelayed(this, 15000);
+                }
+            };
+            main.postDelayed(watchdog, 15000);
             socket.setPingInterval(20000).addListener(new WebSocketAdapter() {
+                @Override public void onPongFrame(WebSocket active, WebSocketFrame frame) {
+                    if (active == socket) lastReply = android.os.SystemClock.elapsedRealtime();
+                }
                 @Override public void onTextMessage(WebSocket active, String text) {
+                    if (active == socket) lastReply = android.os.SystemClock.elapsedRealtime();
                     main.post(() -> {
                         if (active != socket) return;
                         try {
@@ -119,6 +138,8 @@ final class LumaSocket {
     }
 
     void close() {
+        if (watchdog != null) main.removeCallbacks(watchdog);
+        watchdog = null;
         WebSocket old = socket;
         socket = null;
         ready = false;

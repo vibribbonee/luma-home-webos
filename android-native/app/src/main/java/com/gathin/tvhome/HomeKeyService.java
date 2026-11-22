@@ -82,6 +82,7 @@ public class HomeKeyService extends AccessibilityService {
     private boolean homeLongPressHome;
     private static final long LUMA_HOME_HOLD_MS = 650;
     private LumaRemoteOverlay lumaOverlay;
+    private boolean lumaHomeShortcut;
     private boolean lumaHomePressed;
     private boolean lumaHomeHeld;
     private boolean lumaDismissPressed;
@@ -174,10 +175,15 @@ public class HomeKeyService extends AccessibilityService {
     private void updateLumaOverlay() {
         UserManager users = getSystemService(UserManager.class);
         if (users == null || !users.isUserUnlocked()) return;
-        boolean enabled = getSharedPreferences(LumaRemoteOverlay.PREFS, MODE_PRIVATE)
+        lumaHomeShortcut = getSharedPreferences(LumaRemoteOverlay.PREFS, MODE_PRIVATE)
                 .getBoolean(LumaRemoteOverlay.ENABLED, false);
-        if (enabled && lumaOverlay == null) lumaOverlay = new LumaRemoteOverlay(this);
-        else if (!enabled) closeLumaOverlay();
+        org.json.JSONObject connection = LumaSocket.json();
+        try { connection = new org.json.JSONObject(new LumaPreferences(getSharedPreferences("lumax", MODE_PRIVATE)).get()); }
+        catch (org.json.JSONException ignored) { }
+        boolean receiverNeeded = lumaHomeShortcut || (!connection.optString("url").isEmpty()
+                && !connection.optString("token").isEmpty());
+        if (receiverNeeded && lumaOverlay == null) lumaOverlay = new LumaRemoteOverlay(this);
+        else if (!receiverNeeded) closeLumaOverlay();
     }
 
     private void closeLumaOverlay() {
@@ -185,6 +191,13 @@ public class HomeKeyService extends AccessibilityService {
         lumaHomePressed = false;
         if (lumaOverlay != null) lumaOverlay.close();
         lumaOverlay = null;
+    }
+
+    @Override
+    protected void dump(java.io.FileDescriptor fd, java.io.PrintWriter writer, String[] args) {
+        super.dump(fd, writer, args);
+        writer.println("LumaX shortcuts=" + getSharedPreferences(LumaRemoteOverlay.PREFS, MODE_PRIVATE).getBoolean(LumaRemoteOverlay.ENABLED, false));
+        writer.println(lumaOverlay == null ? "LumaX overlay not active" : lumaOverlay.diagnostics());
     }
 
     @Override
@@ -330,7 +343,7 @@ public class HomeKeyService extends AccessibilityService {
         if (lumaOverlay != null
                 && (event.getKeyCode() != KeyEvent.KEYCODE_HOME || !lumaHomePressed)
                 && lumaOverlay.relayKey(event)) return true;
-        if (lumaOverlay != null && event.getKeyCode() == KeyEvent.KEYCODE_HOME) {
+        if (lumaOverlay != null && lumaHomeShortcut && event.getKeyCode() == KeyEvent.KEYCODE_HOME) {
             if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
                 lumaDismissPressed = lumaOverlay.closeControls();
             }

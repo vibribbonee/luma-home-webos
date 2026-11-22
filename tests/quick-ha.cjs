@@ -49,6 +49,16 @@ const root=path.resolve(__dirname,'..');const boot=JSON.parse(fs.readFileSync(ro
  await remoteKey('close');
  await page.locator('#quickPanel').waitFor({state:'hidden'});
  await page.waitForFunction(()=>window.calls.some(c=>c.type==='unsubscribe_events'&&c.subscription===window.sockets.find(s=>s.quickSub).quickSub));
+ await page.evaluate(()=>{
+  const controls=Array.from({length:200},(_,i)=>'switch.large_'+i);
+  controls.forEach((entity_id,i)=>window.mockStates[entity_id]={entity_id,state:'off',attributes:{friendly_name:'Control '+i}});
+  window.configChange({controls});
+  document.dispatchEvent(new CustomEvent('webOSRelaunch',{detail:{quick:true,toggle:false}}));
+ });
+ await page.waitForFunction(()=>document.querySelectorAll('.quick-controls [data-entity]').length===200);
+ await page.evaluate(()=>LumaNav.focus(document.querySelector('[data-entity="switch.large_199"]')));
+ assert.equal(await page.evaluate(()=>document.activeElement.dataset.entity),'switch.large_199');
+ assert(await page.locator('.quick-controls').evaluate(node=>node.scrollTop)>0,'the last of 200 controls remains reachable by remote navigation');
  assert.deepStrictEqual(errors,[]);
  console.log('Passed: quick-panel brightness tile and key handling, scoped HA subscription, SmartTube launch delegated to Luma Home.');
  }finally{await browser.close();}

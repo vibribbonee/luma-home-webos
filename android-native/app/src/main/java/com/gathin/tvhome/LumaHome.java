@@ -103,6 +103,7 @@ final class LumaHome {
 
     void resume() {
         active = true;
+        HomeKeyService.applyLumaHomeShortcut();
         if (!preferences.optString("token").isEmpty()) connect();
     }
 
@@ -378,9 +379,22 @@ final class LumaHome {
             rows.add(tapOpensHome ? "Tap Home opens the launcher" : "Tap Home opens Room controls");
             rows.add("Google remote on other LG inputs · " + (lgNavigation ? "On" : "Off"));
         }
+        int speakerRow = rows.size();
+        rows.add("Assist reply speaker · " + (sharedSettings().optString("voice_reply_speaker").isEmpty() ? "Device audio" : "External speaker"));
+        int speakerPolicyRow = rows.size();
+        if (linkedToLg) rows.add("Use reply speaker · " + ("always".equals(sharedSettings().optString("voice_reply_output")) ? "Always" : "Only when TV is off"));
+        int cycleRow = rows.size();
+        if (linkedToLg) rows.add("LG Input button · " + (sharedSettings().optBoolean("input_button_cycle") ? "Switch HDMI 1 / HDMI 2" : "LG input picker"));
         int androidHomeRow = rows.size();
         rows.add("Android Home app");
         showSidePanel(LumaPanel.dialog(activity).setTitle("Settings").setItems(rows.toArray(new String[0]), (dialog, row) -> {
+            if (row == speakerRow) { chooseReplySpeaker(); return; }
+            if (linkedToLg && row == speakerPolicyRow) {
+                if (!paired()) { message("Choose a Luma Home room first."); return; }
+                saveLgSetting("voice_reply_output", "always".equals(sharedSettings().optString("voice_reply_output")) ? "tv_off" : "always", this::showSettings);
+                return;
+            }
+            if (linkedToLg && row == cycleRow) { saveLgSetting("input_button_cycle", !sharedSettings().optBoolean("input_button_cycle"), this::showSettings); return; }
             if (row == androidHomeRow) {
                 openAndroidDefaults(Settings.ACTION_HOME_SETTINGS);
                 return;
@@ -441,6 +455,26 @@ final class LumaHome {
                     break;
             }
         }).setNegativeButton("Close", null));
+    }
+
+    private void chooseReplySpeaker() {
+        if (!paired()) { message("Choose a Luma Home room first."); return; }
+        socket.request("get_states", json(), result -> {
+            if (result == null || !active) return;
+            List<String> names = new ArrayList<>(), ids = new ArrayList<>();
+            names.add("Device audio (no external speaker)"); ids.add("");
+            JSONArray states = array(result);
+            for (int i = 0; i < states.length(); i++) {
+                JSONObject state = states.optJSONObject(i);
+                if (state == null || !state.optString("entity_id").startsWith("media_player.")) continue;
+                JSONObject attrs = state.optJSONObject("attributes");
+                if (attrs != null && "tv".equals(attrs.optString("device_class"))) continue;
+                ids.add(state.optString("entity_id")); names.add(entityLabel(state));
+            }
+            showSidePanel(LumaPanel.dialog(activity).setTitle("Assist reply speaker")
+                    .setItems(names.toArray(new String[0]), (dialog, which) ->
+                            saveLgSetting("voice_reply_speaker", ids.get(which), this::showSettings)));
+        });
     }
 
     private void showLgIdleSettings() {
@@ -652,7 +686,7 @@ final class LumaHome {
             for (int i = 0; i < current.length(); i++) selected.add(current.optString(i));
             for (int i = 0; i < states.length(); i++) {
                 JSONObject state = states.optJSONObject(i);
-                if (state == null || controlService(state.optString("entity_id")).isEmpty()) continue;
+                if (state == null || !LumaRoomControls.displayableEntity(state.optString("entity_id"))) continue;
                 ids.add(state.optString("entity_id"));
                 names.add(entityLabel(state));
             }

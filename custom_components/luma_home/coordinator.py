@@ -16,6 +16,7 @@ from .lumax import QuickPanel, StreamerOverlay, active_streamer_input, artwork_r
 _LOGGER=logging.getLogger(__name__)
 NAVIGATION_KEYS = {'left': 'LEFT', 'right': 'RIGHT', 'up': 'UP', 'down': 'DOWN', 'ok': 'ENTER', 'back': 'BACK'}
 TV_RUNTIME_SETTINGS = {
+    'input_button_cycle',
     'lumax_enabled', 'lumax_input', 'home_button', 'home_swap', 'microphone', 'no_signal', 'screensaver',
     'voice_mode', 'voice_listen_seconds', 'voice_silence_seconds', 'voice_start_seconds', 'voice_reply', 'voice_pipeline',
 }

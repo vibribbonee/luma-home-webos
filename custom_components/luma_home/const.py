@@ -15,6 +15,7 @@ DEFAULTS['lumax_activity'] = 'lumax://home'
 DEFAULTS['reverse_light_keys'] = None  # Preserve older Streamer-local preferences until anyone sets the shared option.
 DEFAULTS['voice_reply_speaker'] = ''
 DEFAULTS['voice_reply_output'] = 'tv_off'
+DEFAULTS['input_button_cycle'] = False
 PIN_MIGRATION={'ha:script.luma_launch_smarttube':'luma:app/smarttube','ha:script.luma_launch_jellyfin':'luma:app/jellyfin'}
 ENTITY_RE=re.compile(r'^[a-z_]+\.[a-z0-9_]+$')
 def settings(options):return deepcopy(DEFAULTS)|dict(options)
@@ -24,13 +25,14 @@ def validate_patch(patch):
     for key,value in patch.items():
         if key not in DEFAULTS:raise HomeAssistantError(f'Unknown Luma setting: {key}')
         if key in ('pins','controls'):
-            if not isinstance(value,list) or len(value)>24:raise HomeAssistantError('Choose no more than 24 items.')
+            limit = 200 if key == 'controls' else 24
+            if not isinstance(value,list) or len(value)>limit:raise HomeAssistantError(f'Choose no more than {limit} items.')
             if not all(isinstance(x,str) and len(x)<160 for x in value):raise HomeAssistantError('Invalid item list.')
             value=list(dict.fromkeys(PIN_MIGRATION.get(x,x) for x in value))
             if key=='controls' and not all(ENTITY_RE.fullmatch(x) for x in value):raise HomeAssistantError('Choose valid Home Assistant entities.')
         elif key=='tiles':
             if not isinstance(value,dict) or not all(ENTITY_RE.fullmatch(k) and v in ('Small','Compact','Standard','Large') for k,v in value.items()):raise HomeAssistantError('Invalid tile sizes.')
-        elif key in ('lumax_enabled','climate','home_swap','home_button','microphone','voice_reply','no_signal','screensaver','reverse_light_keys'):
+        elif key in ('lumax_enabled','climate','home_swap','home_button','microphone','voice_reply','no_signal','screensaver','reverse_light_keys','input_button_cycle'):
             if not isinstance(value,bool):raise HomeAssistantError(f'{key} must be on or off.')
         elif key in ('lumax_input','idle','columns','voice_listen_seconds','voice_silence_seconds','voice_start_seconds','notification_seconds'):
             lo,hi={'lumax_input':(1,2),'idle':(0,60),'columns':(2,3),'voice_listen_seconds':(3,30),'voice_silence_seconds':(.5,5),'voice_start_seconds':(3,20),'notification_seconds':(3,120)}[key]

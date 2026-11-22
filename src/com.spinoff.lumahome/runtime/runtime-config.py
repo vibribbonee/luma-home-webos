@@ -10,7 +10,7 @@ def write(name,value):
     os.chmod(tmp,384);os.rename(tmp,path)
 def main():
     data=json.loads(base64.b64decode(sys.argv[1]));cfg=data.get('settings',{})
-    allowed={'voice_mode':('hold','tap'),'voice_listen_seconds':(3,30),'voice_silence_seconds':(.5,5),'voice_start_seconds':(3,20),'voice_reply':bool,'voice_pipeline':str,'lumax_enabled':bool,'lumax_input':(1,2),'home_button':bool,'home_swap':bool,'microphone':bool,'no_signal':bool,'screensaver':bool}
+    allowed={'voice_mode':('hold','tap'),'voice_listen_seconds':(3,30),'voice_silence_seconds':(.5,5),'voice_start_seconds':(3,20),'voice_reply':bool,'voice_pipeline':str,'lumax_enabled':bool,'lumax_input':(1,2),'input_button_cycle':bool,'home_button':bool,'home_swap':bool,'microphone':bool,'no_signal':bool,'screensaver':bool}
     current={}
     try:current=json.load(open(ROOT+'/runtime.json'))
     except (IOError,ValueError):pass
@@ -40,6 +40,7 @@ def main():
     null=open(os.devnull,'wb')
     if 'home_button' in cfg:subprocess.check_call([ROOT+'/home-hook.sh','enable' if cfg['home_button'] else 'stop'],stdout=null,stderr=null)
     if 'microphone' in cfg:subprocess.check_call([ROOT+'/voice-control.sh','enable' if cfg['microphone'] else 'disable'],stdout=null,stderr=null)
+    if 'input_button_cycle' in cfg and os.path.exists(ROOT+'/home-hook.enabled'):subprocess.check_call([ROOT+'/home-native.sh','enable'],stdout=null,stderr=null)
     print(json.dumps({'success':True,'home_button':os.path.exists(ROOT+'/home-hook.enabled'),'microphone':os.path.exists(ROOT+'/voice.enabled')}))
 if __name__=='__main__':
     try:main()

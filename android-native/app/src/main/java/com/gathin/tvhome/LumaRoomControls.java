@@ -63,6 +63,10 @@ final class LumaRoomControls {
         }
     }
 
+    static boolean displayableEntity(String id) {
+        return !controlService(id).isEmpty() || id.startsWith("sensor.") || id.startsWith("binary_sensor.");
+    }
+
     static String entityLabel(JSONObject state) {
         String id = state.optString("entity_id");
         JSONObject attributes = state.optJSONObject("attributes");
@@ -87,7 +91,7 @@ final class LumaRoomControls {
             List<JSONObject> options = new ArrayList<>();
             for (int i = 0; i < ids.length(); i++) {
                 String id = ids.optString(i);
-                if (controlService(id).isEmpty()) continue;
+                if (!displayableEntity(id)) continue;
                 for (int j = 0; j < states.length(); j++) {
                     JSONObject state = states.optJSONObject(j);
                     if (state == null || !id.equals(state.optString("entity_id"))) continue;
@@ -141,10 +145,11 @@ final class LumaRoomControls {
         Context theme = new ContextThemeWrapper(activity, R.style.Theme_LumaPanel);
         LinearLayout header = new LinearLayout(theme);
         header.setOrientation(LinearLayout.VERTICAL);
-        header.setPadding(px(34), px(34), px(34), px(14));
+        header.setPadding(px(34), px(34), px(34), 0);
         TextView title = new TextView(theme);
         title.setText(settings.optString("room", "Home"));
         LumaPanel.text(title, 39, LumaPanel.TEXT);
+        title.setFontVariationSettings("'wght' 500");
         Button dismiss = LumaPanel.closeButton(theme, "Close Room controls", this::close);
         header.addView(LumaPanel.heading(theme, title, dismiss));
 
@@ -220,6 +225,7 @@ final class LumaRoomControls {
             return;
         }
         String service = controlService(id);
+        if (service.isEmpty()) return;
         runControl(id, service, json("entity_id", id), () -> {
             if ("toggle".equals(service)) {
                 LumaSocket.put(state, "state", "on".equals(state.optString("state")) ? "off" : "on");
@@ -286,7 +292,7 @@ final class LumaRoomControls {
         power.setPadding(px(20), px(12), px(20), px(12));
         power.setBackground(LumaPanel.shape(activity, LumaPanel.CONTROL, 18, 0x28ffffff, 1));
         LinearLayout.LayoutParams powerSize = new LinearLayout.LayoutParams(-1, px(66));
-        powerSize.topMargin = px(28);
+        powerSize.topMargin = 0;
         content.addView(power, powerSize);
         power.setOnClickListener(view -> runControl(id, "toggle", json("entity_id", id), () -> {
             boolean enabled = !"on".equals(state.optString("state"));
@@ -325,13 +331,24 @@ final class LumaRoomControls {
         slider.setFocusable(true);
         level.setText(label + " · " + (slider.getProgress() + min) + unit);
         LumaPanel.text(level, 26, LumaPanel.TEXT);
-        slider.setThumbTintList(android.content.res.ColorStateList.valueOf(LumaPanel.TEXT));
-        slider.setProgressTintList(android.content.res.ColorStateList.valueOf(LumaPanel.TEXT));
-        slider.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(0x40ffffff));
+        android.graphics.drawable.GradientDrawable thumb = new android.graphics.drawable.GradientDrawable();
+        thumb.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+        thumb.setColor(Color.WHITE); thumb.setStroke(px(3), 0xffd8dfed); thumb.setSize(px(34), px(34));
+        slider.setThumb(thumb); slider.setThumbOffset(px(17));
+        slider.setPadding(px(17), 0, px(17), 0);
+        int[] colors = "Warmth".equals(label) ? new int[]{0xffffb64d, 0xffffe4b3, 0xffdeefff}
+                : new int[]{0x40ffffff, 0x40ffffff};
+        android.graphics.drawable.GradientDrawable track = new android.graphics.drawable.GradientDrawable(
+                android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT, colors);
+        track.setCornerRadius(px(12));
+        android.graphics.drawable.LayerDrawable tracks = new android.graphics.drawable.LayerDrawable(
+                new android.graphics.drawable.Drawable[]{track});
+        tracks.setLayerHeight(0, px(12)); tracks.setLayerGravity(0, Gravity.CENTER_VERTICAL);
+        slider.setProgressDrawable(tracks);
         content.addView(level);
         LinearLayout.LayoutParams sliderSize = new LinearLayout.LayoutParams(-1, px(48));
-        sliderSize.topMargin = px(6);
-        sliderSize.bottomMargin = px(20);
+        sliderSize.topMargin = 0;
+        sliderSize.bottomMargin = px(28);
         content.addView(slider, sliderSize);
         Runnable apply = () -> onChange.accept(slider.getProgress() + min);
         slider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
@@ -381,7 +398,8 @@ final class LumaRoomControls {
         LumaPanel.sideSheet(activity, window);
         panel.show();
         LumaPanel.sideSheet(activity, window);
-        if (panel.getListView() != null) panel.getListView().setSelector(R.drawable.luma_panel_focus);
+        if (panel.getListView() != null) panel.getListView().setSelector(LumaPanel.focusOutline(activity));
+        if (panel.getListView() != null) panel.getListView().setDrawSelectorOnTop(true);
         panel.setOnDismissListener(dialog -> visibilityChanged.run());
         visibilityChanged.run();
         return panel;

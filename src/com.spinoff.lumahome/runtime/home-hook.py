@@ -81,11 +81,15 @@ def session(report):
                 sec,usec,kind,code,value=struct.unpack(FMT,data[i:i+SIZE])
                 if kind!=1:continue
                 if code==INPUT and value==1:
-                    # Leave the key with webOS. Close our overlay without relaunching it
-                    # or repairing HDMI video while the native Input picker takes focus.
-                    run(['/usr/bin/luna-send','-w','800','-n','1','-f',
-                         'luna://com.webos.surfacemanager/closeByAppId',
-                         '{"id":"com.spinoff.lumahome.overlay"}'])
+                    try:input_settings=json.load(open(ROOT+'/runtime.json'))
+                    except (IOError,ValueError):input_settings={}
+                    if home_ready and input_settings.get('input_button_cycle',False):
+                        run(['/usr/bin/python',ROOT+'/input-cycle.py'])
+                    else:
+                        # Stock Input mode retains LG's picker and its navigation.
+                        run(['/usr/bin/luna-send','-w','800','-n','1','-f',
+                             'luna://com.webos.surfacemanager/closeByAppId',
+                             '{"id":"com.spinoff.lumahome.overlay"}'])
                 if code==MIC and os.path.exists(ROOT+'/voice.enabled'):
                     if value==1:
                         open(ROOT+'/voice-held','w').close()

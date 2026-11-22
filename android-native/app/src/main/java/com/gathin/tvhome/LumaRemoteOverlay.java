@@ -44,6 +44,7 @@ final class LumaRemoteOverlay {
     private int port;
     private boolean connecting;
     private boolean pendingControls;
+    private String connectionStatus = "Starting";
     private boolean webosQuickActive;
     private boolean webosHoldConfirm;
     private boolean webosNativeTarget;
@@ -100,8 +101,10 @@ final class LumaRemoteOverlay {
         connecting = false;
         if (token.isEmpty() || address.isEmpty()) return;
         connecting = true;
+        connectionStatus = "Connecting";
         socket.open(address, token, () -> {
             connecting = false;
+            connectionStatus = "Connected";
             if (tv.isEmpty()) {
                 openPendingControls();
                 return;
@@ -115,9 +118,13 @@ final class LumaRemoteOverlay {
                     webosHoldConfirm = webosQuickActive && event.optBoolean("hold_confirm");
                     Log.d(TAG, webosQuickActive ? "LG panel opened" : "LG panel released remote");
                 }
-                if (event.has("native_target")) webosNativeTarget = event.optBoolean("native_target");
+                if (event.has("native_target")) {
+                    webosNativeTarget = event.optBoolean("native_target");
+                    if (webosNativeTarget) controls.close();
+                }
             });
         }, reason -> {
+            connectionStatus = reason;
             connecting = false;
             webosQuickActive = false;
             webosHoldConfirm = false;
@@ -183,6 +190,8 @@ final class LumaRemoteOverlay {
             });
         });
     }
+
+    String diagnostics() { return "connection=" + connectionStatus + ", ready=" + socket.isReady() + ", paired=" + paired() + ", lgPanel=" + webosQuickActive + ", controls=" + controls.isShowing(); }
 
     boolean tapOpensHome() { return !paired() || shared.optBoolean("home_swap", true); }
 

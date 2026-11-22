@@ -38,7 +38,7 @@
   var socket=ha.ws;
   if(!catalogArtwork||!ha.ready||!ha.entryId||socket===reportedSocket)return;
   reportedSocket=socket;
-  ha.report({catalog:catalog,version:'0.4.27',setup_complete:true}).then(function(){return catalogArtwork;}).then(function(icons){
+  ha.report({catalog:catalog,version:'0.4.28',setup_complete:true}).then(function(){return catalogArtwork;}).then(function(icons){
    if(ha.ws===socket&&ha.ready&&icons&&Object.keys(icons).length)return ha.report({catalog_artwork:icons});
   }).catch(function(){if(reportedSocket===socket)reportedSocket=null;});
  }
@@ -193,7 +193,7 @@
     sizeSelect.dataset.tileEntity=id;sizeSelect.onchange=function(){var size=sizeSelect.value;sizeSelect.disabled=true;ha.setConfig(function(config){var m=Object.assign({},config.tiles||{});if(size)m[id]=size;else delete m[id];return {tiles:m};}).then(function(){sizeSelect.disabled=false;say('Tile size saved');},function(e){sizeSelect.disabled=false;err(e);});};
 
     var pair=node('div','row-pair');pair.appendChild(sizeSelect);pair.appendChild(remove);root.appendChild(row(name(id),pair));});
-   if(Luma.fit(ids.concat(['x.x']),value('tilesize','Standard'),Luma.parseMap(value('tiles','{}')),value('columns',3)).length>ids.length){var select=node('select');entityOptions(function(id){return ['light','switch','input_boolean','fan','scene','script','button','input_button','sensor','binary_sensor'].indexOf(id.split('.')[0])>=0&&id.indexOf('luma_home_')<0&&ids.indexOf(id)<0;}).forEach(function(o){var el=node('option','',o.label);el.value=o.value;select.appendChild(el);});select.onchange=function(){if(select.value)saveItems('controls',items('controls',[]).concat([select.value])).then(refreshStates).catch(err);};root.appendChild(row('Add a control',select));}
+   if(ids.length<200){var select=node('select');entityOptions(function(id){return ['light','switch','input_boolean','fan','scene','script','button','input_button','sensor','binary_sensor'].indexOf(id.split('.')[0])>=0&&id.indexOf('luma_home_')<0&&ids.indexOf(id)<0;}).forEach(function(o){var el=node('option','',o.label);el.value=o.value;select.appendChild(el);});select.onchange=function(){if(select.value)saveItems('controls',items('controls',[]).concat([select.value])).then(refreshStates).catch(err);};root.appendChild(row('Add a control',select));}
   }else if(settingsTab==='appearance'){
    root.appendChild(row('Backdrop',selection('theme',BACKDROPS.map(function(x){return {value:x,label:x};}))));root.appendChild(row('Favorite tile size',selection('tilesize',['Small','Compact','Standard','Large'].map(function(x){return {value:x,label:x};}))));
    root.appendChild(row('Small tiles across',selection('columns',[{value:'2',label:'2 across'},{value:'3',label:'3 across'}])));
@@ -210,9 +210,11 @@
     lightKeys.onclick=function(){save('reverse_light_keys',!reverse).then(renderSettings).catch(err);};
     root.appendChild(row('Adjustable lights',lightKeys));
    }
+   root.appendChild(row('Assist reply speaker',selection('voice_reply_speaker',[{value:'',label:'Device audio (no external speaker)'}].concat(entityOptions(function(id,s){return id.indexOf('media_player.')===0&&s.attributes.device_class!=='tv';}).filter(function(o){return !!o.value;})))));
+   root.appendChild(row('Use reply speaker',selection('voice_reply_output',[{value:'tv_off',label:'Only when TV is off'},{value:'always',label:'Always'}])));
    root.appendChild(row('Mic button',selection('voice_mode',[{value:'hold',label:'Hold to speak'},{value:'tap',label:'Tap to speak'}])));
    [['voice_listen_seconds','Maximum listening time',3,30,1],['voice_start_seconds','Wait for speech',3,20,1],['voice_silence_seconds','Tap mode silence cutoff',.5,5,.1]].forEach(function(spec){var input=node('input');input.type='range';input.min=spec[2];input.max=spec[3];input.step=spec[4];input.value=value(spec[0],spec[2]);var text=node('span','',input.value+' s');var group=node('div','timing');group.appendChild(input);group.appendChild(text);input.oninput=function(){text.textContent=input.value+' s';};input.onchange=function(){save(spec[0],Number(input.value)).catch(err);};root.appendChild(row(spec[1],group));});
-   [['home_button','Home button shortcut'],['microphone','Home Assistant microphone'],['voice_reply','Spoken responses'],['no_signal','Show Home when HDMI has no signal'],['screensaver','Replace the idle screensaver with the clock']].forEach(function(spec){var toggle=node('button','',value(spec[0],'off')==='on'?'On':'Off');toggle.onclick=function(){save(spec[0],value(spec[0],'off')!=='on').then(function(){renderSettings();}).catch(err);};root.appendChild(row(spec[1],toggle));});
+   [['home_button','Home button shortcut'],['input_button_cycle','Input button switches HDMI 1 / HDMI 2'],['microphone','Home Assistant microphone'],['voice_reply','Spoken responses'],['no_signal','Show Home when HDMI has no signal'],['screensaver','Replace the idle screensaver with the clock']].forEach(function(spec){var toggle=node('button','',value(spec[0],'off')==='on'?'On':'Off');toggle.onclick=function(){save(spec[0],value(spec[0],'off')!=='on').then(function(){renderSettings();}).catch(err);};root.appendChild(row(spec[1],toggle));});
    var idleNow=node('button','','Show idle clock');idleNow.onclick=function(){$('settings').hidden=true;ambient();};root.appendChild(row('Idle screen',idleNow));
    var recovery=node('button','','Checking…');
    var suspendFile='/var/lib/webosbrew/lumahome/lumax.suspended';
@@ -284,5 +286,5 @@
  loadCatalog();
  setTimeout(function(){runAction(launchParams());},0);
  // Read-only runtime status for on-device inspection; never exposes credentials.
- window.lumaStatus=function(){return {version:'0.4.27',haConnected:ha.ready,stateCount:Object.keys(states).length,pins:pins(),input:selectedInput,video:{readyState:$('inputVideo').readyState,width:$('inputVideo').videoWidth,height:$('inputVideo').videoHeight,error:$('inputVideo').error&&$('inputVideo').error.code}};};
+ window.lumaStatus=function(){return {version:'0.4.28',haConnected:ha.ready,stateCount:Object.keys(states).length,pins:pins(),input:selectedInput,video:{readyState:$('inputVideo').readyState,width:$('inputVideo').videoWidth,height:$('inputVideo').videoHeight,error:$('inputVideo').error&&$('inputVideo').error.code}};};
 })();

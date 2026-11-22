@@ -63,6 +63,7 @@ final class LumaPanel {
 
     static void text(TextView view, int size, int color) {
         view.setTypeface(view.getContext().getResources().getFont(R.font.luma_outfit));
+        view.setFontVariationSettings("'wght' 400");
         view.setTextSize(TypedValue.COMPLEX_UNIT_PX, tvPx(view.getContext(), size));
         view.setTextColor(color);
         view.setIncludeFontPadding(false);
@@ -88,6 +89,14 @@ final class LumaPanel {
         background.setCornerRadius(tvPx(context, radius));
         background.setStroke(Math.max(1, tvPx(context, stroke)), border);
         return background;
+    }
+
+    static StateListDrawable focusOutline(Context context) {
+        StateListDrawable outline = new StateListDrawable();
+        outline.addState(new int[]{android.R.attr.state_focused}, shape(context, Color.TRANSPARENT, 18, Color.WHITE, 3));
+        outline.addState(new int[]{android.R.attr.state_pressed}, shape(context, Color.TRANSPARENT, 18, Color.WHITE, 3));
+        outline.addState(new int[0], new ColorDrawable(Color.TRANSPARENT));
+        return outline;
     }
 
     static Button closeButton(Context context, String description, Runnable close) {

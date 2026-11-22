@@ -9,8 +9,8 @@ Put your apps, HDMI inputs, and Home Assistant controls on one screen on a roote
 ## Features
 
 - **Launcher and quick panel.** Pin TV apps and HDMI inputs. Open a compact panel over what you’re watching, or open the full launcher.
-- **Home Assistant controls.** Dim lights, run scenes and scripts, and show room temperature and humidity.
-- **Voice on the TV remote.** Use tap-to-speak or hold-to-speak with Home Assistant Assist and hear the reply on the TV.
+- **Home Assistant controls.** Scroll through up to 200 controls and readings. Adjust brightness and warmth, run scenes and scripts, and show temperature, humidity and CO₂.
+- **Voice on the TV remote.** Use tap-to-speak or hold-to-speak with Home Assistant Assist and hear replies on the TV or an optional Home Assistant speaker.
 - **Overlays.** Show a camera feed, a text notification, or a spoken announcement over the current picture.
 - **Personalize the TV.** Set a backdrop, rename HDMI inputs, and display an idle clock.
 
@@ -21,7 +21,7 @@ Put your apps, HDMI inputs, and Home Assistant controls on one screen on a roote
 1. On the TV, open **Homebrew Channel → Settings → Add repository** and enter the [Homebrew catalog URL](https://raw.githubusercontent.com/vibribbonee/arcguard/main/repo.json). Install **Luma Home** and **Luma Camera Overlay**, or download both [IPKs from Releases](https://github.com/vibribbonee/luma-home-webos/releases/latest).
 2. Add your TV to Home Assistant with the built-in **LG webOS TV** integration. Install Luma Home from Marketplace, restart Home Assistant, then add the **Luma Home** integration and select the TV.
 3. In Home Assistant, add `/luma_home/luma-home-card.js` as a JavaScript module dashboard resource. Add a card with `type: custom:luma-home-settings`. With the TV on, open the card and select **Pair TV with this Home Assistant**.
-4. On the TV, open **Luma Home → Settings → System & voice** and enable **Home button shortcut**. Tap Home for the quick panel or hold it for the full launcher. You can swap the two actions in the same menu.
+4. On the TV, open **Luma Home → Settings → System & voice** and enable **Home button shortcut**. Tap Home for the full launcher or hold it for the quick panel. You can swap the two actions in the same menu.
 
 Tested on LG UP78 (43UP78006LB), webOS 6.3.2-425.
 
@@ -29,14 +29,18 @@ Tested on LG UP78 (43UP78006LB), webOS 6.3.2-425.
 
 The Streamer setup works with an Android TV or Google TV device connected to any HDMI display.
 
-The current [LumaX preview release](https://github.com/vibribbonee/luma-home-webos/releases/tag/v0.4.27-preview) includes the Streamer APK, both webOS packages and the matching Home Assistant integration. See [Streamer setup and source](android-native/README.md).
+The current [LumaX preview release](https://github.com/vibribbonee/luma-home-webos/releases/tag/v0.4.28-preview) includes the Streamer APK, both webOS packages and the matching Home Assistant integration. See [Streamer setup and source](android-native/README.md).
 
 1. Add the Streamer to Home Assistant using **Android TV Remote**.
 2. In **Settings → Devices & services → Add integration → Luma Home**, choose **Android TV or Google TV Streamer**. Select its remote entity, then choose the Home Assistant area for Assist.
 3. In **LumaX settings**, connect to Home Assistant and choose the room under **Luma Home room**. Enable **Home button shortcuts** to show Room controls while another Streamer app is playing.
 4. Select **Default assistant and mic button** in LumaX settings to use the Google remote for Assist.
 
+Choose an optional **Assist reply speaker** in LumaX settings or the HA settings card. With a paired LG, use it only while the TV is off or for every reply. Leave it on **Device audio** to keep the current behavior.
+
 Camera previews and text notifications appear in the Streamer’s video output. HDMI switching for other inputs uses the display’s own controls.
+
+The optional **Input button switches HDMI 1 / HDMI 2** setting replaces LG’s input picker. Turn it off to restore the picker.
 
 ### Pair the Streamer with an LG TV
 

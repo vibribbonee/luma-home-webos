@@ -63,7 +63,7 @@ async def states(hass,connection,msg):
     try:resolve(hass,msg)
     except HomeAssistantError as err:connection.send_error(msg['id'],'not_paired',str(err));return
     result=[]
-    for entity_id in msg['entity_ids'][:100]:
+    for entity_id in msg['entity_ids'][:256]:
         state=hass.states.get(entity_id)
         if state and connection.user.permissions.check_entity(entity_id,POLICY_READ):result.append(state.as_dict())
     connection.send_result(msg['id'],result)
