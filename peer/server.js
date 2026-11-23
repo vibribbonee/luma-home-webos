@@ -60,15 +60,15 @@ module.exports = function createPeerServer(options) {
     ws.on('close', () => { clearInterval(heartbeat); timers.forEach(clearTimeout); timers.clear(); clients.delete(client); });
     ws.on('error', () => {});
     function send(value) {
-      const encoded = JSON.stringify(value);
-      if (encoded.length > 1048576 || ws.bufferedAmount > 1048576) { ws.terminate(); return; }
+      let encoded;
+      try { encoded = JSON.stringify(value); } catch (_) { return false; }
+      if (Buffer.byteLength(encoded, 'utf8') > 1048576 || ws.bufferedAmount > 1048576) { ws.terminate(); return; }
       if (ws.readyState === WebSocket.OPEN) ws.send(encoded);
+      return true;
     }
     send({type: 'hello', device});
     ws.on('message', (raw, binary) => {
-      // ws 7 reports binary in a flags object only in some versions; reject Buffers below
-      // only after decoding: JSON parsing and maxPayload still bound every message.
-      if (binary === true) { ws.close(1003); return; }
+      if (Buffer.isBuffer(raw) || binary === true) { ws.close(1003); return; }
       if (Date.now() - period >= 1000) { requests = 0; period = Date.now(); }
       if (++requests > 30) { ws.close(1008); return; }
       let request;
@@ -85,8 +85,15 @@ module.exports = function createPeerServer(options) {
         expired = true; send({id: request.id, error: 'timeout'});
       }, 3000);
       timers.add(timeout);
-      Promise.resolve().then(() => options.handlers[request.command](request.args, {peer: client.peer}))
-        .then(result => { if (!expired) send({id: request.id, result: result === undefined ? {} : result}); },
+      Promise.resolve().then(() => {
+        if (ws.readyState !== WebSocket.OPEN || peers.get(client.pin) !== client.peer)
+          throw Error('Peer disconnected');
+        return options.handlers[request.command](request.args, {peer: client.peer});
+      })
+        .then(result => {
+          if (!expired && !send({id: request.id, result: result === undefined ? {} : result}))
+            send({id: request.id, error: 'unavailable'});
+        },
           () => { if (!expired) send({id: request.id, error: 'unavailable'}); })
         .then(() => { clearTimeout(timeout); timers.delete(timeout); pending.delete(request.id); });
     });
