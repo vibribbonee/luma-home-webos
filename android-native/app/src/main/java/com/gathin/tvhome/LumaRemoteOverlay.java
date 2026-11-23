@@ -159,6 +159,8 @@ final class LumaRemoteOverlay {
         JSONObject snapshot = (JSONObject) value;
         if (!tv.equals(snapshot.optString("tv_id"))) return;
         int previous = streamerInput();
+        boolean wasPaired = paired();
+        boolean wasStreamerOnly = streamerOnly;
         shared = settings(snapshot);
         supportsRendererHeartbeat = snapshot.optBoolean("overlay_keepalive");
         if (supportsRendererHeartbeat && !rendererId.isEmpty()) {
@@ -166,7 +168,11 @@ final class LumaRemoteOverlay {
             main.postDelayed(verifyRegistration, 15000);
         }
         streamerOnly = snapshot.optBoolean("streamer_only");
-        if (streamerInput() != previous && !rendererId.isEmpty()) main.post(reconnect);
+        boolean routingChanged = streamerInput() != previous || paired() != wasPaired || streamerOnly != wasStreamerOnly;
+        if (routingChanged && !rendererId.isEmpty()) {
+            main.removeCallbacks(reconnect);
+            main.post(reconnect);
+        }
         else openPendingControls();
     }
 
