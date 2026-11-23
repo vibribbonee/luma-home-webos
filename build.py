@@ -1,14 +1,23 @@
 #!/usr/bin/env python3
 """Package local sources as webOS IPKs without CLI/npm dependencies."""
-import gzip,io,json,tarfile,time,shutil
+import gzip,io,json,tarfile,shutil,os
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parent
+
+def build_epoch():
+    return int(os.environ.get('SOURCE_DATE_EPOCH', '0'))
+
+def packaged_file(path, source):
+    parts = path.relative_to(source).parts
+    return (path.is_file() and not path.is_symlink()
+            and not any(part.startswith('.') or part == '__pycache__' for part in parts)
+            and path.suffix not in ('.pyc', '.pyo', '.bak', '.tmp'))
 def archive(files):
     data=io.BytesIO()
     with tarfile.open(fileobj=data,mode='w',format=tarfile.USTAR_FORMAT) as tar:
         for name,body,mode in files:
-            item=tarfile.TarInfo(name);item.size=len(body);item.mode=mode;item.mtime=int(time.time());item.uid=item.gid=0
+            item=tarfile.TarInfo(name);item.size=len(body);item.mode=mode;item.mtime=build_epoch();item.uid=item.gid=0
             tar.addfile(item,io.BytesIO(body))
     return gzip.compress(data.getvalue(),mtime=0)
 
@@ -16,7 +25,7 @@ def build(app_id):
     src=ROOT/'src'/app_id;info=json.loads((src/'appinfo.json').read_text());version=info['version']
     app_files=[]
     for path in sorted(src.rglob('*')):
-        if path.is_file() and not path.name.startswith('.'):
+        if packaged_file(path, src):
             app_files.append((f'./usr/palm/applications/{app_id}/{path.relative_to(src)}',path.read_bytes(),0o644))
     if app_id.endswith('.overlay'):
         main = ROOT / 'src/com.spinoff.lumahome'
@@ -28,11 +37,11 @@ def build(app_id):
     members=[('debian-binary',b'2.0\n'),('control.tar.gz',archive([('control',control,0o644)])),('data.tar.gz',archive(app_files))]
     output=bytearray(b'!<arch>\n')
     for name,body in members:
-        header=f'{name+"/":<16}{int(time.time()):<12}{0:<6}{1001:<6}{"100644":<8}{len(body):<10}`\n'.encode()
+        header=f'{name+"/":<16}{build_epoch():<12}{0:<6}{1001:<6}{"100644":<8}{len(body):<10}`\n'.encode()
         assert len(header)==60
         output.extend(header);output.extend(body)
         if len(body)%2:output.extend(b'\n')
-    out=ROOT/'dist'/f'{app_id}_{version}_all.ipk';out.parent.mkdir(exist_ok=True);out.write_bytes(output);print(out)
+    out=ROOT/'dist'/f'{app_id}_{version}_all.ipk';out.parent.mkdir(exist_ok=True);out.write_bytes(output);print(out);return out
 if __name__=='__main__':
     runtime=ROOT/'src/com.spinoff.lumahome/runtime';runtime.mkdir(exist_ok=True)
     for path in (ROOT/'tools').glob('*'):
