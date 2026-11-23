@@ -20,7 +20,7 @@
         "rootRequired": true,
         "ipkUrl": "https://github.com/vibribbonee/luma-home-webos/releases/download/v0.4.30-preview/com.spinoff.lumahome_0.4.30_all.ipk",
         "ipkHash": {
-          "sha256": "2fda901624cf405032c7ef5837f2241039efe3b6107d600885af64787983284e"
+          "sha256": "f26997416e7d92b4a64cd44e6b6d91174f8344d9dfcb21bfc50f994bb76fba3c"
         },
         "appDescription": "Preview launcher and webOS remote handler"
       }
@@ -39,7 +39,7 @@
         "rootRequired": true,
         "ipkUrl": "https://github.com/vibribbonee/luma-home-webos/releases/download/v0.4.30-preview/com.spinoff.lumahome.overlay_0.4.30_all.ipk",
         "ipkHash": {
-          "sha256": "a507e55afc883e90f27e357995066645fd9b7f89917a3bbad5e5859291f407a4"
+          "sha256": "e5bad7545741a36160ba9913635ac607ea9f8d04a7b4d4b49be1aa4eefa45274"
         },
         "appDescription": "Preview Room controls, Assist, and camera overlays"
       }
