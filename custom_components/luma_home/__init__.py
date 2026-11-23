@@ -87,7 +87,7 @@ async def async_unload_entry(hass,entry):
         return False
     hass.data[DOMAIN].pop(entry.entry_id, None)
     if tv.catalog_store and tv.catalog_ready:
-        await tv.catalog_store.async_save({'catalog': tv.catalog})
+        await tv.catalog_store.async_save(tv.catalog_snapshot())
     return True
 
 def platforms_for(tv):

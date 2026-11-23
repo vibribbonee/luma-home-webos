@@ -319,6 +319,12 @@ class LumaTV:
         else:
             if not any(x.get('id')==app for x in self.catalog):raise HomeAssistantError('Choose an app installed on this TV.')
             await self.command({'luma':'app','app_id':app})
+    def catalog_snapshot(self):
+        return deepcopy({
+            'catalog': self.catalog,
+            **({'catalog_artwork': self.catalog_artwork} if self.artwork_version else {}),
+        })
+
     def report(self,data):
         self.last_seen=datetime.now(timezone.utc)
         safe_keys=('version','home_button','microphone','voice_phase','voice_error','audio_state','setup_complete','capabilities')
@@ -340,10 +346,7 @@ class LumaTV:
                 changed = True
         if changed:
             if self.catalog_store:
-                self.catalog_store.async_delay_save(lambda: {
-                    'catalog': self.catalog,
-                    **({'catalog_artwork': self.catalog_artwork} if self.artwork_version else {}),
-                }, 2)
+                self.catalog_store.async_delay_save(self.catalog_snapshot, 2)
             self.config_changed()
         else:
             self.publish()
