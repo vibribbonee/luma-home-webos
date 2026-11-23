@@ -8,8 +8,9 @@ const root=path.resolve(__dirname,'..'),boot=JSON.parse(fs.readFileSync(root+'/h
  await page.route('http://ha.invalid/api/camera_proxy/**',async route=>{const url=new URL(route.request().url()),sig=url.searchParams.get('authSig');url.searchParams.delete('authSig');const actual=url.pathname+(url.search?'?'+url.searchParams.toString():'');if(Buffer.from(sig||'','base64').toString()!==actual){rejected++;return route.fulfill({status:403,body:'Invalid signature'});}requests++;await route.fulfill({status:200,contentType:'image/png',headers:{'Cache-Control':'no-store'},body:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aYV0AAAAASUVORK5CYII=','base64')});});
  await page.goto('file://'+root+'/src/com.spinoff.lumahome.overlay/index.html');await page.locator('#quickPanel [data-entity]').first().waitFor();
  await page.evaluate(()=>window.configChange({tilesize:'Small',tiles:{'switch.test':'Compact'},columns:3}));
- await page.waitForFunction(()=>document.querySelector('[data-entity="light.test"]').dataset.size==='Small');
- assert.equal(await page.locator('[data-entity="switch.test"]').getAttribute('data-size'),'Compact');
+ const rows=await page.locator('#quickPanel [data-entity]').evaluateAll(items=>items.map(item=>({id:item.dataset.entity,width:item.getBoundingClientRect().width})));
+ assert.deepEqual(rows.map(row=>row.id),['light.test','switch.test','switch.two']);
+ assert(rows.every(row=>Math.abs(row.width-rows[0].width)<1),'quick menus share full-width rows; tile sizes apply to Home favorites');
  const bounds=await page.evaluate(()=>{const p=document.getElementById('quickPanel'),s=document.querySelector('.quick-status'),c=document.querySelector('.quick-controls');return {bottom:p.getBoundingClientRect().bottom,statusBottom:s.getBoundingClientRect().bottom,scroll:c.scrollHeight,client:c.clientHeight};});assert(bounds.bottom<=1080&&bounds.statusBottom<=1080&&bounds.client>0);
  const relaunch=d=>page.evaluate(detail=>document.dispatchEvent(new CustomEvent('webOSRelaunch',{detail})),d);
  await relaunch({camera:'camera.test',mode:'snapshot',timeout:3,title:'Printer'});
@@ -22,5 +23,5 @@ const root=path.resolve(__dirname,'..'),boot=JSON.parse(fs.readFileSync(root+'/h
  assert.equal(rejected,0,'every changing snapshot URL must be signed with its cache-busting query');assert(requests>=2);assert.equal(await page.evaluate(()=>window.lumaCameraStatus().width),1);
  await page.waitForFunction(()=>window.hiddenFlag,{timeout:6000});assert.deepStrictEqual(errors,[]);
  await relaunch({voice:{phase:'listening',message:'Listening'}});assert(await page.locator('#voicePanel').isVisible());assert(await page.locator('#camera').isHidden(),'voice-only relaunch must not reveal an inactive camera');await page.keyboard.press('Escape');
- console.log('Passed: shared quick-menu tile sizes and bounded layout, complete signed snapshot URLs, transient visibility during startup, multiple decoded frames and timeout after display.');
+ console.log('Passed: shared quick-menu control rows and bounded layout, complete signed snapshot URLs, transient visibility during startup, multiple decoded frames and timeout after display.');
  }finally{await browser.close();}})().catch(e=>{console.error(e);process.exitCode=1});

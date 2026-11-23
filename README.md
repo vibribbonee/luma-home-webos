@@ -27,7 +27,7 @@ Tested on LG UP78 (43UP78006LB), webOS 6.3.2-425.
 
 ## LumaX on a Streamer
 
-The Streamer setup works with an Android TV or Google TV device connected to any HDMI display.
+The Streamer setup works with an Android TV or Google TV device connected to any HDMI display. Paired TV/Streamer routing currently uses Home Assistant; direct pairing is under development. The LG launcher can open its local apps and HDMI inputs without HA.
 
 The current [LumaX preview release](https://github.com/vibribbonee/luma-home-webos/releases/tag/v0.4.30-preview) includes the Streamer APK, both webOS packages and the matching Home Assistant integration. See [Streamer setup and source](android-native/README.md).
 
@@ -64,6 +64,6 @@ To hide a tile on the Streamer, hold OK and select **Hide app**. Restore it unde
 
 ## Contributing
 
-Pull requests are welcome. Describe the change and how you tested it.
+Pull requests are welcome. See [Contributing](CONTRIBUTING.md) for source locations and checks.
 
 [MIT license](LICENSE). OpenAI Codex assisted with development, testing, and documentation.

@@ -23,7 +23,7 @@ android {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            // Sideloaded over ADB, never published: sign with the debug key so it installs over a debug build.
+            // Development preview: retain the debug signing identity so preview updates preserve settings.
             signingConfig signingConfigs.debug
         }
     }
