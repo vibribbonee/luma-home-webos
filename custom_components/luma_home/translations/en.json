@@ -58,11 +58,16 @@
           "temperature": "Temperature sensor",
           "humidity": "Humidity sensor",
           "co2": "Carbon dioxide sensor",
-          "lumax_input": "Streamer HDMI port"
+          "lumax_input": "Streamer HDMI port",
+          "controls": "Room controls",
+          "voice_reply_speaker": "Optional Assist reply speaker",
+          "voice_reply_output": "Use reply speaker",
+          "input_button_cycle": "Input button switches HDMI 1 / HDMI 2"
         },
         "data_description": {
           "lumax_enabled": "Open the optional LumaX app when using the TV’s full Home shortcut. Fall back to the webOS launcher when the Streamer is unavailable.",
-          "lumax_input": "The HDMI port on the LG that the Google TV Streamer is plugged into."
+          "lumax_input": "The HDMI port on the LG that the Google TV Streamer is plugged into.",
+          "controls": "Search for up to 200 entities. This shared list syncs to the TV and Streamer."
         }
       },
       "streamer_options": {
@@ -70,7 +75,12 @@
         "data": {
           "room": "Room name",
           "voice_reply": "Spoken replies",
-          "lumax_activity": "LumaX app"
+          "lumax_activity": "LumaX app",
+          "controls": "Room controls",
+          "voice_reply_speaker": "Optional Assist reply speaker"
+        },
+        "data_description": {
+          "controls": "Search for up to 200 entities. This shared list syncs to the TV and Streamer."
         }
       }
     }

@@ -45,6 +45,11 @@ final class LumaRemoteOverlay {
     private boolean connecting;
     private boolean pendingControls;
     private String connectionStatus = "Starting";
+    private String rendererId = "";
+    private boolean relayReady;
+    private boolean supportsRendererHeartbeat;
+    private final Runnable verifyRegistration = this::verifyRegistration;
+    private String registrationFailure = "";
     private boolean webosQuickActive;
     private boolean webosHoldConfirm;
     private boolean webosNativeTarget;
@@ -94,9 +99,12 @@ final class LumaRemoteOverlay {
 
     private void connect() {
         main.removeCallbacks(reconnect);
+        main.removeCallbacks(verifyRegistration);
         webosQuickActive = false;
         webosHoldConfirm = false;
         webosNativeTarget = false;
+        rendererId = "";
+        relayReady = false;
         socket.close();
         connecting = false;
         if (token.isEmpty() || address.isEmpty()) return;
@@ -109,19 +117,29 @@ final class LumaRemoteOverlay {
                 openPendingControls();
                 return;
             }
-            socket.request("luma_home/config/get", json("tv_id", tv), this::receiveConfig);
-            socket.subscribe("luma_home/config/subscribe", json("tv_id", tv), ignored -> { }, this::receiveConfig);
-            subscribe();
-            socket.subscribe("luma_home/quick/subscribe", json("tv_id", tv, "role", "streamer"), ignored -> { }, event -> {
-                if (event.has("active")) {
-                    webosQuickActive = event.optBoolean("active");
-                    webosHoldConfirm = webosQuickActive && event.optBoolean("hold_confirm");
-                    Log.d(TAG, webosQuickActive ? "LG panel opened" : "LG panel released remote");
-                }
-                if (event.has("native_target")) {
-                    webosNativeTarget = event.optBoolean("native_target");
-                    if (webosNativeTarget) controls.close();
-                }
+            socket.request("luma_home/config/get", json("tv_id", tv), initial -> {
+                if (!(initial instanceof JSONObject)) { retryRegistration("Luma Home room not ready"); return; }
+                receiveConfig(initial);
+                socket.subscribe("luma_home/config/subscribe", json("tv_id", tv), result -> {
+                    if (result == null) retryRegistration("Room configuration not ready");
+                }, this::receiveConfig);
+                subscribe();
+                if (!paired()) { relayReady = true; openPendingControls(); return; }
+                socket.subscribe("luma_home/quick/subscribe", json("tv_id", tv, "role", "streamer"), result -> {
+                    relayReady = result != null;
+                    if (!relayReady) retryRegistration("LG key relay not ready");
+                    else openPendingControls();
+                }, event -> {
+                    if (event.has("active")) {
+                        webosQuickActive = event.optBoolean("active");
+                        webosHoldConfirm = webosQuickActive && event.optBoolean("hold_confirm");
+                        Log.d(TAG, webosQuickActive ? "LG panel opened" : "LG panel released remote");
+                    }
+                    if (event.has("native_target")) {
+                        webosNativeTarget = event.optBoolean("native_target");
+                        if (webosNativeTarget) controls.close();
+                    }
+                });
             });
         }, reason -> {
             connectionStatus = reason;
@@ -137,13 +155,18 @@ final class LumaRemoteOverlay {
     }
 
     private void receiveConfig(Object value) {
-        if (!(value instanceof JSONObject)) return;
+        if (!(value instanceof JSONObject)) { retryRegistration("Luma Home room not ready"); return; }
         JSONObject snapshot = (JSONObject) value;
         if (!tv.equals(snapshot.optString("tv_id"))) return;
         int previous = streamerInput();
         shared = settings(snapshot);
+        supportsRendererHeartbeat = snapshot.optBoolean("overlay_keepalive");
+        if (supportsRendererHeartbeat && !rendererId.isEmpty()) {
+            main.removeCallbacks(verifyRegistration);
+            main.postDelayed(verifyRegistration, 15000);
+        }
         streamerOnly = snapshot.optBoolean("streamer_only");
-        if (streamerInput() != previous) main.post(reconnect);
+        if (streamerInput() != previous && !rendererId.isEmpty()) main.post(reconnect);
         else openPendingControls();
     }
 
@@ -153,12 +176,37 @@ final class LumaRemoteOverlay {
         return paired() ? shared.optInt("lumax_input", 1) : port;
     }
 
+    private void retryRegistration(String reason) {
+        registrationFailure = reason;
+        main.removeCallbacks(reconnect);
+        main.postDelayed(reconnect, 1500);
+    }
+
+    private void verifyRegistration() {
+        if (!supportsRendererHeartbeat || !socket.isReady() || rendererId.isEmpty()) return;
+        socket.request("luma_home/lumax/keepalive", json("tv_id", tv, "renderer", rendererId), result -> {
+            if (!(result instanceof JSONObject) || !((JSONObject) result).optBoolean("active"))
+                retryRegistration("Overlay registration expired");
+        });
+        main.postDelayed(verifyRegistration, 15000);
+    }
+
     private void subscribe() {
-        String[] renderer = {""};
-        socket.subscribe("luma_home/lumax/subscribe", json("tv_id", tv, "streamer_input", streamerInput()), result -> {
-            if (result instanceof JSONObject) renderer[0] = ((JSONObject) result).optString("renderer");
+        JSONObject registration = json("tv_id", tv, "streamer_input", streamerInput());
+        if (supportsRendererHeartbeat) LumaSocket.put(registration, "background", true);
+        socket.subscribe("luma_home/lumax/subscribe", registration, result -> {
+            rendererId = result instanceof JSONObject ? ((JSONObject) result).optString("renderer") : "";
+            if (rendererId.isEmpty()) retryRegistration("Overlay receiver not ready");
+            else {
+                registrationFailure = "";
+                openPendingControls();
+                if (supportsRendererHeartbeat) {
+                    main.removeCallbacks(verifyRegistration);
+                    main.postDelayed(verifyRegistration, 15000);
+                }
+            }
         }, event -> {
-            if (!(paired() || streamerOnly) || renderer[0].isEmpty()) return;
+            if (!(paired() || streamerOnly) || rendererId.isEmpty()) return;
             String kind = event.optString("kind");
             switch (kind) {
                 case "quick":
@@ -177,7 +225,7 @@ final class LumaRemoteOverlay {
                 default:
                     return;
             }
-            socket.request("luma_home/lumax/ack", json("tv_id", tv, "renderer", renderer[0], "nonce", event.optString("nonce")), result -> {
+            socket.request("luma_home/lumax/ack", json("tv_id", tv, "renderer", rendererId, "nonce", event.optString("nonce")), result -> {
                 if (!(result instanceof JSONObject) || !((JSONObject) result).optBoolean("accepted")) return;
                 switch (kind) {
                     case "quick": show(); break;
@@ -191,7 +239,7 @@ final class LumaRemoteOverlay {
         });
     }
 
-    String diagnostics() { return "connection=" + connectionStatus + ", ready=" + socket.isReady() + ", paired=" + paired() + ", lgPanel=" + webosQuickActive + ", controls=" + controls.isShowing(); }
+    String diagnostics() { return "connection=" + connectionStatus + ", ready=" + socket.isReady() + ", paired=" + paired() + ", lgPanel=" + webosQuickActive + ", controls=" + controls.isShowing() + ", receiverRegistered=" + !rendererId.isEmpty() + ", relayRegistered=" + relayReady + ", registrationFailure=" + registrationFailure; }
 
     boolean tapOpensHome() { return !paired() || shared.optBoolean("home_swap", true); }
 
@@ -274,7 +322,7 @@ final class LumaRemoteOverlay {
     }
 
     void showControls() {
-        if (!socket.isReady()) {
+        if (!socket.isReady() || paired() && (rendererId.isEmpty() || !relayReady)) {
             if (token.isEmpty()) {
                 Toast.makeText(context, "Connect Home Assistant first.", Toast.LENGTH_SHORT).show();
                 return;
@@ -290,6 +338,7 @@ final class LumaRemoteOverlay {
 
     private void openPendingControls() {
         if (!pendingControls) return;
+        if (paired() && (rendererId.isEmpty() || !relayReady)) return;
         pendingControls = false;
         main.removeCallbacks(controlsTimeout);
         showControls();

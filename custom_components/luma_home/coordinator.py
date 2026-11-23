@@ -85,7 +85,7 @@ class LumaTV:
         self.publish()
         self.publish_remote_target()
     def snapshot(self):
-        return {'entry_id':self.entry.entry_id,'tv_id':self.tv_id,'name':self.entry.title,'streamer_only':self.streamer_only,'settings':self.config,'catalog':deepcopy(self.catalog),'catalog_ready':self.catalog_ready,'artwork_version':self.artwork_version,'status':dict(self.status),'integration_version':INTEGRATION_VERSION,'quick_hold_confirm':True,'clock':{'utc_ms':int(datetime.now(timezone.utc).timestamp()*1000),'time_zone':self.hass.config.time_zone}}
+        return {'entry_id':self.entry.entry_id,'tv_id':self.tv_id,'name':self.entry.title,'streamer_only':self.streamer_only,'settings':self.config,'catalog':deepcopy(self.catalog),'catalog_ready':self.catalog_ready,'artwork_version':self.artwork_version,'status':dict(self.status),'integration_version':INTEGRATION_VERSION,'quick_hold_confirm':True,'overlay_keepalive':True,'clock':{'utc_ms':int(datetime.now(timezone.utc).timestamp()*1000),'time_zone':self.hass.config.time_zone}}
     async def update(self,patch,*,push=True):
         checked=validate_patch(patch);self.hass.config_entries.async_update_entry(self.entry,options=self.config|checked);self.config_changed()
         if push and TV_RUNTIME_SETTINGS.intersection(checked):

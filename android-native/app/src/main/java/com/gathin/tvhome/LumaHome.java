@@ -679,24 +679,7 @@ final class LumaHome {
         if (!socket.isReady()) { message("Connect Home Assistant first."); return; }
         socket.request("get_states", json(), result -> {
             if (!active || result == null) return;
-            JSONArray states = array(result);
-            List<String> names = new ArrayList<>(), ids = new ArrayList<>();
-            LinkedHashSet<String> selected = new LinkedHashSet<>();
-            JSONArray current = controlIds();
-            for (int i = 0; i < current.length(); i++) selected.add(current.optString(i));
-            for (int i = 0; i < states.length(); i++) {
-                JSONObject state = states.optJSONObject(i);
-                if (state == null || !LumaRoomControls.displayableEntity(state.optString("entity_id"))) continue;
-                ids.add(state.optString("entity_id"));
-                names.add(entityLabel(state));
-            }
-            boolean[] checked = new boolean[ids.size()];
-            for (int i = 0; i < checked.length; i++) checked[i] = selected.contains(ids.get(i));
-            LumaPanel.dialog(activity).setTitle("Room controls")
-                    .setMultiChoiceItems(names.toArray(new String[0]), checked, (dialog, row, on) -> {
-                        if (on) selected.add(ids.get(row)); else selected.remove(ids.get(row));
-                    }).setPositiveButton("Save", (dialog, button) -> saveControls(new JSONArray(selected)))
-                    .setNegativeButton("Cancel", null).show();
+            new LumaControlPicker(activity, array(result), controlIds(), paired(), this::saveControls).show();
         });
     }
 

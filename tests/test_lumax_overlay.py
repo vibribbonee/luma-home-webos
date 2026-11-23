@@ -209,6 +209,24 @@ class StreamerOverlayTest(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(await router.deliver({'phase': 'reply'}, owner))
         self.assertEqual(received, ['starting', 'reply'])
 
+    async def test_background_receiver_wins_over_unfocused_home(self):
+        router = lumax.StreamerOverlay()
+        received = []
+        def background(event):
+            received.append('background')
+            router.acknowledge(receiver, event['nonce'])
+        receiver = router.subscribe(1, background, background=True)
+        router.subscribe(1, lambda event: received.append('unfocused-home'))
+        self.assertEqual(await router.deliver({'kind': 'quick'}, input_port=1), receiver)
+        self.assertEqual(received, ['background'])
+
+    async def test_background_receiver_has_time_to_answer_during_playback(self):
+        router = lumax.StreamerOverlay()
+        def busy_receiver(event):
+            asyncio.get_running_loop().call_later(.45, router.acknowledge, receiver, event['nonce'])
+        receiver = router.subscribe(1, busy_receiver, background=True)
+        self.assertEqual(await router.deliver({'kind': 'quick'}, input_port=1), receiver)
+
     async def test_timeout_and_unsubscribe_fall_back_to_lg(self):
         router = lumax.StreamerOverlay()
         events = asyncio.Queue()

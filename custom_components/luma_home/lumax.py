@@ -195,9 +195,9 @@ class StreamerOverlay:
         self.listeners = {}
         self.pending = {}
 
-    def subscribe(self, port, send):
+    def subscribe(self, port, send, *, background=False):
         key = uuid4().hex
-        self.listeners[key] = (port, send)
+        self.listeners[key] = (port, send, background)
         return key
 
     def unsubscribe(self, key):
@@ -216,7 +216,9 @@ class StreamerOverlay:
         return accepted
 
     async def deliver(self, event, renderer=None, *, input_port=None, accept=None):
-        for key, (port, send) in reversed(tuple(self.listeners.items())):
+        newest = tuple(reversed(tuple(self.listeners.items())))
+        receivers = [item for item in newest if item[1][2]] + [item for item in newest if not item[1][2]]
+        for key, (port, send, background) in receivers:
             if renderer is not None and key != renderer:
                 continue
             if input_port is not None and port != input_port:
@@ -226,7 +228,7 @@ class StreamerOverlay:
             self.pending[(key, nonce)] = reply, accept
             try:
                 send({**event, "nonce": nonce})
-                if await asyncio.wait_for(reply, timeout=0.35):
+                if await asyncio.wait_for(reply, timeout=1.2 if background else 0.35):
                     return key
             except (TimeoutError, ConnectionError):
                 continue

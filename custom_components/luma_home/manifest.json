@@ -1,7 +1,7 @@
 {
   "domain": "luma_home",
   "name": "Luma Home",
-  "version": "0.4.28",
+  "version": "0.4.29",
   "config_flow": true,
   "integration_type": "device",
   "iot_class": "local_push",

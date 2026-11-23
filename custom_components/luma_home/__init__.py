@@ -7,7 +7,7 @@ from homeassistant.helpers import config_validation as cv,device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.components.http import StaticPathConfig
 from .const import DOMAIN,PLATFORMS
-from .coordinator import LumaTV,tv_catalog_store
+from .coordinator import LumaTV, TV_RUNTIME_SETTINGS, tv_catalog_store
 async def async_setup(hass:HomeAssistant,config):
     hass.data.setdefault(DOMAIN,{})
     from .websocket import async_register
@@ -67,13 +67,13 @@ async def async_setup_entry(hass,entry):
             devices.async_update_device(device.id, area_id=area_id)
     entry.async_on_unload(tv.start())
     await hass.config_entries.async_forward_entry_setups(entry, platforms_for(tv))
-    hybrid = (tv.config['lumax_enabled'], tv.config['lumax_input'])
+    runtime_settings = {key: tv.config[key] for key in TV_RUNTIME_SETTINGS}
     async def options_changed(hass,entry):
-        nonlocal hybrid
+        nonlocal runtime_settings
         tv.config_changed()
-        routing = (tv.config['lumax_enabled'], tv.config['lumax_input'])
-        if routing != hybrid:
-            hybrid = routing
+        updated = {key: tv.config[key] for key in TV_RUNTIME_SETTINGS}
+        if updated != runtime_settings:
+            runtime_settings = updated
             try:
                 await tv.configure_tv()
             except HomeAssistantError:

@@ -159,7 +159,8 @@ async def announcement_result(hass,connection,msg):
     except HomeAssistantError as err:connection.send_error(msg['id'],'unauthorized',str(err))
 
 @websocket_api.websocket_command({vol.Required('type'): 'luma_home/lumax/subscribe',
-                                  vol.Required('streamer_input'): vol.In([1, 2]), **COMMON})
+                                  vol.Required('streamer_input'): vol.In([1, 2]),
+                                  vol.Optional('background', default=False): bool, **COMMON})
 @websocket_api.async_response
 async def lumax_subscribe(hass, connection, msg):
     try:
@@ -173,10 +174,20 @@ async def lumax_subscribe(hass, connection, msg):
     def send(event):
         connection.send_event(msg['id'], event)
 
-    key = router.subscribe(msg['streamer_input'], send)
+    key = router.subscribe(msg['streamer_input'], send, background=msg['background'])
     connection.subscriptions[msg['id']] = lambda: router.unsubscribe(key)
     connection.send_result(msg['id'], {'renderer': key})
     tv.reconcile_quick_panel()
+
+@websocket_api.websocket_command({vol.Required('type'): 'luma_home/lumax/keepalive',
+                                  vol.Required('renderer'): str, **COMMON})
+@websocket_api.async_response
+async def lumax_keepalive(hass, connection, msg):
+    try:
+        router = authorized(hass, connection, msg).streamer_overlay
+        connection.send_result(msg['id'], {'active': msg['renderer'] in router.listeners})
+    except HomeAssistantError as err:
+        connection.send_error(msg['id'], 'unauthorized', str(err))
 
 @websocket_api.websocket_command({vol.Required('type'): 'luma_home/lumax/ack',
                                   vol.Required('renderer'): str, vol.Required('nonce'): str, **COMMON})
@@ -287,4 +298,4 @@ async def voice_display(hass, connection, msg):
 
 @callback
 def async_register(hass):
-    for fn in (get_config,get_catalog_artwork,set_config,subscribe,report,states,list_tvs,voice_config,voice_display,voice_reply,pair,announcement_result,lumax_subscribe,lumax_ack,quick_subscribe,quick_keepalive,quick_key):websocket_api.async_register_command(hass,fn)
+    for fn in (get_config,get_catalog_artwork,set_config,subscribe,report,states,list_tvs,voice_config,voice_display,voice_reply,pair,announcement_result,lumax_subscribe,lumax_keepalive,lumax_ack,quick_subscribe,quick_keepalive,quick_key):websocket_api.async_register_command(hass,fn)
