@@ -38,7 +38,7 @@
   var socket=ha.ws;
   if(!catalogArtwork||!ha.ready||!ha.entryId||socket===reportedSocket)return;
   reportedSocket=socket;
-  ha.report({catalog:catalog,version:'0.4.29',setup_complete:true}).then(function(){return catalogArtwork;}).then(function(icons){
+  ha.report({catalog:catalog,version:'0.4.30',setup_complete:true}).then(function(){return catalogArtwork;}).then(function(icons){
    if(ha.ws===socket&&ha.ready&&icons&&Object.keys(icons).length)return ha.report({catalog_artwork:icons});
   }).catch(function(){if(reportedSocket===socket)reportedSocket=null;});
  }
