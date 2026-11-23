@@ -68,8 +68,9 @@ final class LumaRemoteOverlay {
         };
         options = service.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         ContextThemeWrapper theme = new ContextThemeWrapper(service, R.style.Theme_TvHome);
-        controls = new LumaRoomControls(theme, socket, true);
         media = new LumaMedia(theme, true);
+        controls = new LumaRoomControls(theme, socket, true, state -> media.showCamera(address, token,
+                json("camera", state.optString("entity_id"), "title", LumaRoomControls.entityLabel(state))));
         media.observeRoomControls(controls);
         credentials = service.getSharedPreferences("lumax", Context.MODE_PRIVATE);
         credentials.registerOnSharedPreferenceChangeListener(changed);

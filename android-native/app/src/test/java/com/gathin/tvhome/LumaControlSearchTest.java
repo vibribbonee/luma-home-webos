@@ -14,6 +14,9 @@ public class LumaControlSearchTest {
         assertFalse(LumaControlSearch.matches("switch.kitchen", "Kitchen", "kitchen", "light", true));
         assertTrue(LumaControlSearch.matches("input_boolean.movie", "Movie mode", "movie", "switch", true));
         assertTrue(LumaControlSearch.matches("sensor.humidity", "Humidity", "", "readings", false));
+        assertTrue(LumaControlSearch.matches("camera.porch", "Porch camera", "porch", "devices", false));
+        assertTrue(LumaControlSearch.matches("climate.heater", "Bedroom heater", "", "devices", false));
+        assertFalse(LumaControlSearch.matches("camera.porch", "Porch camera", "", "actions", false));
         assertFalse(LumaControlSearch.matches("sensor.humidity", "Humidity", "", "selected", false));
         assertTrue(LumaControlSearch.matches("sensor.humidity", "Humidity", "", "selected", true));
         assertFalse(LumaControlSearch.matches("", "Missing", "", "all", true));

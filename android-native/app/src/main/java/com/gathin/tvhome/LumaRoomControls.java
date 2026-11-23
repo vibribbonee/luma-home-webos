@@ -39,15 +39,17 @@ final class LumaRoomControls {
     private final Context activity;
     private final LumaSocket socket;
     private final boolean overlay;
+    private final Consumer<JSONObject> cameraOpener;
     private final Handler main = new Handler(Looper.getMainLooper());
     private AlertDialog panel;
     private int generation;
     private Runnable visibilityChanged = () -> { };
 
-    LumaRoomControls(Context context, LumaSocket socket, boolean overlay) {
+    LumaRoomControls(Context context, LumaSocket socket, boolean overlay, Consumer<JSONObject> cameraOpener) {
         this.activity = context;
         this.socket = socket;
         this.overlay = overlay;
+        this.cameraOpener = cameraOpener;
     }
 
     void onVisibilityChanged(Runnable changed) { visibilityChanged = changed; }
@@ -57,6 +59,11 @@ final class LumaRoomControls {
         if (separator < 0) return "";
         switch (id.substring(0, separator)) {
             case "light": case "switch": case "fan": case "input_boolean": return "toggle";
+            case "climate": return "power";
+            case "cover": return "cover";
+            case "lock": return "lock";
+            case "media_player": return "media_play_pause";
+            case "automation": return "trigger";
             case "scene": case "script": return "turn_on";
             case "button": case "input_button": return "press";
             default: return "";
@@ -64,7 +71,10 @@ final class LumaRoomControls {
     }
 
     static boolean displayableEntity(String id) {
-        return !controlService(id).isEmpty() || id.startsWith("sensor.") || id.startsWith("binary_sensor.");
+        return !controlService(id).isEmpty() || id.startsWith("camera.")
+                || id.startsWith("number.") || id.startsWith("input_number.")
+                || id.startsWith("select.") || id.startsWith("input_select.")
+                || id.startsWith("sensor.") || id.startsWith("binary_sensor.");
     }
 
     static String entityLabel(JSONObject state) {
@@ -224,14 +234,75 @@ final class LumaRoomControls {
             showLight(state, back);
             return;
         }
+        String domain = id.substring(0, id.indexOf('.'));
+        if ("camera".equals(domain)) {
+            if (cameraOpener == null) { message("Camera preview is unavailable."); return; }
+            close();
+            main.post(() -> cameraOpener.accept(state));
+            return;
+        }
+        if ("number".equals(domain) || "input_number".equals(domain)) {
+            close();
+            showNumber(state, back);
+            return;
+        }
+        if ("select".equals(domain) || "input_select".equals(domain)) {
+            close();
+            showOptions(state, back);
+            return;
+        }
         String service = controlService(id);
         if (service.isEmpty()) return;
-        runControl(id, service, json("entity_id", id), () -> {
+        String command = service;
+        if ("power".equals(command)) command = "off".equals(current) ? "turn_on" : "turn_off";
+        else if ("cover".equals(command)) command = "closed".equals(current) ? "open_cover" : "close_cover";
+        else if ("lock".equals(command)) command = "locked".equals(current) ? "unlock" : "lock";
+        runControl(id, command, json("entity_id", id), () -> {
             if ("toggle".equals(service)) {
                 LumaSocket.put(state, "state", "on".equals(state.optString("state")) ? "off" : "on");
                 refresh.run();
             }
         });
+    }
+
+    private void showNumber(JSONObject state, Runnable back) {
+        String id = state.optString("entity_id");
+        JSONObject attributes = state.optJSONObject("attributes");
+        double min = attributes == null ? 0 : attributes.optDouble("min", 0);
+        double max = attributes == null ? 100 : attributes.optDouble("max", 100);
+        double step = attributes == null ? 1 : attributes.optDouble("step", 1);
+        if (!(max > min) || !(step > 0)) { message("This number control has no usable range."); back.run(); return; }
+        int ticks = Math.max(1, Math.min(10_000, (int) Math.round((max - min) / step)));
+        double current;
+        try { current = Double.parseDouble(state.optString("state")); }
+        catch (NumberFormatException ignored) { current = min; }
+        int initial = Math.max(0, Math.min(ticks, (int) Math.round((current - min) / step)));
+        LinearLayout content = new LinearLayout(activity); content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(px(34), px(14), px(34), px(34));
+        String unit = attributes == null ? "" : attributes.optString("unit_of_measurement");
+        SeekBar focus = addSlider(content, entityLabel(state), unit.isEmpty() ? "" : " " + unit,
+                0, ticks, 1, initial, tick -> runControl(id, "set_value",
+                        json("entity_id", id, "value", min + tick * step)));
+        LinearLayout title = new LinearLayout(activity); title.setPadding(px(34), px(34), px(34), px(12));
+        TextView name = new TextView(activity); name.setText(entityLabel(state)); LumaPanel.text(name, 39, LumaPanel.TEXT);
+        title.addView(LumaPanel.heading(activity, name, LumaPanel.closeButton(activity, "Back to Room controls", () -> { close(); back.run(); })));
+        showSidePanel(LumaPanel.dialog(activity).setCustomTitle(title).setView(content));
+        panel.setOnDismissListener(dialog -> { visibilityChanged.run(); main.postDelayed(back, 250); });
+        focus.requestFocus();
+    }
+
+    private void showOptions(JSONObject state, Runnable back) {
+        String id = state.optString("entity_id");
+        JSONObject attributes = state.optJSONObject("attributes");
+        JSONArray choices = attributes == null ? new JSONArray() : array(attributes.opt("options"));
+        if (choices.length() == 0) { message("This selector has no options."); back.run(); return; }
+        String[] labels = new String[choices.length()];
+        for (int i = 0; i < choices.length(); i++) labels[i] = choices.optString(i);
+        LumaPanel.dialog(activity).setTitle(entityLabel(state)).setItems(labels, (dialog, row) ->
+                runControl(id, "select_option", json("entity_id", id, "option", labels[row]), () -> {
+                    LumaSocket.put(state, "state", labels[row]);
+                    back.run();
+                })).setOnDismissListener(dialog -> main.postDelayed(back, 250)).show();
     }
 
     private static boolean supportsBrightness(JSONObject state) {

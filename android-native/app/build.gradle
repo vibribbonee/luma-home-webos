@@ -13,8 +13,8 @@ android {
         applicationId providers.gradleProperty('launcherApplicationId').getOrElse('dev.lumax.nativepreview')
         minSdk 26
         targetSdk 34
-        versionCode 45
-        versionName '0.2.31-native-preview'
+        versionCode 46
+        versionName '0.2.32-native-preview'
     }
 
     buildTypes {

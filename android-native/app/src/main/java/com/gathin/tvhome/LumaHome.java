@@ -75,7 +75,9 @@ final class LumaHome {
         cache = activity.getSharedPreferences("luma-native", 0);
         artwork = new LumaTileArt(activity, cache, this::reloadArtwork);
         media = new LumaMedia(activity);
-        roomControls = new LumaRoomControls(activity, socket, false);
+        roomControls = new LumaRoomControls(activity, socket, false, state -> media.showCamera(
+                preferences.optString("url"), preferences.optString("token"),
+                json("camera", state.optString("entity_id"), "title", entityLabel(state))));
         media.observeRoomControls(roomControls);
         preferences = parse(credentials.get());
         cachedConfig = cache.getString("catalog", "{}");

@@ -15,7 +15,11 @@ final class LumaControlSearch {
         if ("switch".equals(filter) && !("switch".equals(domain) || "input_boolean".equals(domain))) return false;
         if ("readings".equals(filter) && !("sensor".equals(domain) || "binary_sensor".equals(domain))) return false;
         if ("actions".equals(filter) && !("scene".equals(domain) || "script".equals(domain)
-                || "button".equals(domain) || "input_button".equals(domain))) return false;
+                || "button".equals(domain) || "input_button".equals(domain) || "automation".equals(domain))) return false;
+        if ("devices".equals(filter) && !("camera".equals(domain) || "climate".equals(domain)
+                || "cover".equals(domain) || "lock".equals(domain) || "media_player".equals(domain)
+                || "number".equals(domain) || "input_number".equals(domain)
+                || "select".equals(domain) || "input_select".equals(domain))) return false;
         if (("light".equals(filter) || "fan".equals(filter)) && !filter.equals(domain)) return false;
         String searchable = fold(label + " " + id);
         for (String word : fold(query).trim().split("\\s+")) if (!searchable.contains(word)) return false;

@@ -152,8 +152,8 @@ final class LumaControlPicker {
     }
 
     private void chooseFilter() {
-        String[] names = {"All types", "Lights", "Switches", "Fans", "Scenes and actions", "Readings", "Selected"};
-        String[] values = {"all", "light", "switch", "fan", "actions", "readings", "selected"};
+        String[] names = {"All types", "Lights", "Switches", "Fans", "Cameras and devices", "Scenes and actions", "Readings", "Selected"};
+        String[] values = {"all", "light", "switch", "fan", "devices", "actions", "readings", "selected"};
         LumaPanel.dialog(context).setTitle("Filter controls").setItems(names, (ignored, which) -> {
             filter = values[which]; filterButton.setText(names[which]); refresh();
         }).show();
