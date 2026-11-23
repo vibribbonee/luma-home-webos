@@ -46,6 +46,15 @@ const root=path.resolve(__dirname,'..');const boot=JSON.parse(fs.readFileSync(ro
  await page.locator('[data-entity="switch.test"]').focus();
  await remoteKey('ok');
  await page.waitForFunction(()=>window.calls.some(c=>c.domain==='switch'&&c.service==='turn_on'&&c.target.entity_id==='switch.test'));
+ await page.evaluate(()=>{
+  window.mockStates['camera.porch']={entity_id:'camera.porch',state:'idle',attributes:{friendly_name:'Porch camera'}};
+  window.mockStates['climate.heater']={entity_id:'climate.heater',state:'heat',attributes:{friendly_name:'Bedroom heater'}};
+  window.configChange({controls:['camera.porch','climate.heater']});
+ });
+ await page.locator('[data-entity="camera.porch"]').click();
+ await page.waitForFunction(()=>window.calls.some(c=>c.domain==='luma_home'&&c.service==='show_camera'&&c.service_data.camera==='camera.porch'));
+ await page.locator('[data-entity="climate.heater"]').click();
+ await page.waitForFunction(()=>window.calls.some(c=>c.domain==='climate'&&c.service==='turn_off'&&c.target.entity_id==='climate.heater'));
  await remoteKey('close');
  await page.locator('#quickPanel').waitFor({state:'hidden'});
  await page.waitForFunction(()=>window.calls.some(c=>c.type==='unsubscribe_events'&&c.subscription===window.sockets.find(s=>s.quickSub).quickSub));
@@ -60,6 +69,6 @@ const root=path.resolve(__dirname,'..');const boot=JSON.parse(fs.readFileSync(ro
  assert.equal(await page.evaluate(()=>document.activeElement.dataset.entity),'switch.large_199');
  assert(await page.locator('.quick-controls').evaluate(node=>node.scrollTop)>0,'the last of 200 controls remains reachable by remote navigation');
  assert.deepStrictEqual(errors,[]);
- console.log('Passed: quick-panel brightness tile and key handling, scoped HA subscription, SmartTube launch delegated to Luma Home.');
+ console.log('Passed: quick-panel brightness, camera and climate actions, scoped HA subscription, and SmartTube launch delegated to Luma Home.');
  }finally{await browser.close();}
 })();

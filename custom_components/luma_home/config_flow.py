@@ -17,7 +17,9 @@ def room_controls_selector():
     return selector.EntitySelector(selector.EntitySelectorConfig(
         multiple=True, filter=selector.EntityFilterSelectorConfig(domain=[
             'light', 'switch', 'input_boolean', 'fan', 'scene', 'script',
-            'button', 'input_button', 'sensor', 'binary_sensor',
+            'button', 'input_button', 'camera', 'climate', 'cover', 'lock',
+            'media_player', 'automation', 'number', 'input_number', 'select',
+            'input_select', 'sensor', 'binary_sensor',
         ]),
     ))
 

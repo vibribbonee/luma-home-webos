@@ -55,7 +55,13 @@
  function toggleControl(card){
   var id=card.dataset.entity,state=ha.states[id],domain=id.split('.')[0],service;
   if(!ha.ready||!state||['unavailable','unknown'].indexOf(state.state)>=0)return;
+  if(domain==='camera'){ha.service('luma_home','show_camera',null,{entry_id:ha.entryId,camera:id}).catch(function(e){root.querySelector('.quick-status').textContent=e.message;});return;}
   if(['light','switch','input_boolean','fan'].indexOf(domain)>=0)service=state.state==='on'?'turn_off':'turn_on';
+  else if(domain==='climate')service=state.state==='off'?'turn_on':'turn_off';
+  else if(domain==='cover')service=state.state==='closed'?'open_cover':'close_cover';
+  else if(domain==='lock')service=state.state==='locked'?'unlock':'lock';
+  else if(domain==='media_player')service='media_play_pause';
+  else if(domain==='automation')service='trigger';
   else if(['scene','script'].indexOf(domain)>=0)service='turn_on';
   else if(['button','input_button'].indexOf(domain)>=0)service='press';
   if(service)ha.service(domain,service,id).catch(function(e){root.querySelector('.quick-status').textContent=e.message;});
