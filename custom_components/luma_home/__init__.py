@@ -54,7 +54,7 @@ async def async_setup_entry(hass,entry):
     devices = dr.async_get(hass)
     identifiers = {(DOMAIN, entry.unique_id)}
     model = 'LumaX Streamer' if tv.streamer_only else 'webOS Home and Home Assistant overlays'
-    existing = devices.async_get_device(identifiers=identifiers)
+    existing = tv.own_device()
     device = devices.async_get_or_create(config_entry_id=entry.entry_id, identifiers=identifiers,
                                          name=entry.title, manufacturer='Luma Home', model=model)
     if existing is None:

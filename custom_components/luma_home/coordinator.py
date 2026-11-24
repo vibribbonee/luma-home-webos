@@ -10,7 +10,7 @@ from urllib.parse import urlsplit
 from uuid import uuid4
 from homeassistant.core import callback
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.helpers.storage import Store
 from .const import APP,OVERLAY,DOMAIN,settings,validate_patch
@@ -59,6 +59,18 @@ class LumaTV:
                 self.artwork_version = artwork_revision(self.catalog_artwork)
     @property
     def tv_id(self):return self.entry.unique_id
+    def own_device(self):
+        """This entry's Luma Home device, looked up within the config entry.
+
+        async_get_device(identifiers=...) is deprecated (removed in HA 2027.8) because
+        identifiers are only unique per config entry; fall back to it on older cores.
+        """
+        devices = dr.async_get(self.hass)
+        identifier = (DOMAIN, self.tv_id)
+        lookup = getattr(devices, 'async_get_device_by_identifier', None)
+        if lookup is not None:
+            return lookup(identifier, self.entry.entry_id)
+        return devices.async_get_device(identifiers={identifier})
     @property
     def config(self):return settings(self.entry.options)
     @property

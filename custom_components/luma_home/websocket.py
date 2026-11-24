@@ -79,12 +79,11 @@ async def voice_config(hass,connection,msg):
     """Use HA's current per-device selector, including the preferred assistant."""
     from homeassistant.components.assist_pipeline.pipeline import async_get_pipeline
     from homeassistant.components.assist_pipeline.select import get_chosen_pipeline
-    from homeassistant.helpers import device_registry as dr
     try:
         tv=authorized(hass,connection,msg)
         if msg['microphone']=='lg' and not tv.config['microphone']:raise HomeAssistantError('The HA microphone is disabled for this TV.')
         pipeline=async_get_pipeline(hass,get_chosen_pipeline(hass,DOMAIN,tv.tv_id))
-        device=dr.async_get(hass).async_get_device(identifiers={(DOMAIN,tv.tv_id)})
+        device=tv.own_device()
         connection.send_result(msg['id'],{'pipeline':pipeline.id,'name':pipeline.name,'stt_engine':pipeline.stt_engine,'device_id':device.id if device else None,'voice_reply':tv.config['voice_reply'],'speaker_configured':bool(tv.config['voice_reply_speaker'])})
     except HomeAssistantError as err:connection.send_error(msg['id'],'voice_unavailable',str(err))
 
