@@ -12,6 +12,7 @@ from homeassistant.loader import async_get_integration
 from .const import DOMAIN,PLATFORMS
 from .coordinator import LumaTV, TV_RUNTIME_SETTINGS, tv_catalog_store
 CARD_URL='/luma_home/luma-home-card.js'
+CONFIG_SCHEMA=cv.config_entry_only_config_schema(DOMAIN)
 async def async_setup(hass:HomeAssistant,config):
     hass.data.setdefault(DOMAIN,{})
     from .websocket import async_register

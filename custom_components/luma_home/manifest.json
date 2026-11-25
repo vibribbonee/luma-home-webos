@@ -1,10 +1,14 @@
 {
   "domain": "luma_home",
   "name": "Luma Home",
-  "version": "0.4.30",
+  "after_dependencies": [
+    "webostv",
+    "androidtv_remote"
+  ],
+  "codeowners": [
+    "@vibribbonee"
+  ],
   "config_flow": true,
-  "integration_type": "device",
-  "iot_class": "local_push",
   "dependencies": [
     "assist_pipeline",
     "assist_satellite",
@@ -12,14 +16,10 @@
     "http",
     "websocket_api"
   ],
-  "requirements": [],
-  "codeowners": [
-    "@vibribbonee"
-  ],
   "documentation": "https://github.com/vibribbonee/luma-home-webos#readme",
+  "integration_type": "device",
+  "iot_class": "local_push",
   "issue_tracker": "https://github.com/vibribbonee/luma-home-webos/issues",
-  "after_dependencies": [
-    "webostv",
-    "androidtv_remote"
-  ]
+  "requirements": [],
+  "version": "0.4.30"
 }
