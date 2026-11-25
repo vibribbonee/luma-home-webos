@@ -1,7 +1,7 @@
 #!/usr/bin/python
 """Cycle the two HDMI inputs without opening LG's source picker."""
 from __future__ import print_function
-import fcntl,json,os,signal,subprocess
+import fcntl,json,subprocess
 try:
     from urllib.request import HTTPRedirectHandler,Request,build_opener
 except ImportError:

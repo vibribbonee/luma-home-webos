@@ -1,6 +1,5 @@
 """Check installable package bytes and exclude local development artifacts."""
 import contextlib
-import gzip
 import importlib.util
 import io
 import json

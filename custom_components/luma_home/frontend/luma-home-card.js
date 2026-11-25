@@ -48,5 +48,6 @@ class LumaHomeSettings extends HTMLElement {
  card.append(this.el('div'));const error=this.el('div');error.className='error';card.append(error);
  }
 }
-if(!customElements.get('luma-home-settings'))customElements.define('luma-home-settings',LumaHomeSettings);
-window.customCards=window.customCards||[];window.customCards.push({type:'luma-home-settings',name:'Luma Home',description:'Native per-TV Luma Home settings and controls'});
+// The integration loads this card automatically; an older manual resource
+// may load it too, so register the element and picker entry only once.
+if(!customElements.get('luma-home-settings')){customElements.define('luma-home-settings',LumaHomeSettings);window.customCards=window.customCards||[];window.customCards.push({type:'luma-home-settings',name:'Luma Home',description:'Native per-TV Luma Home settings and controls'});}

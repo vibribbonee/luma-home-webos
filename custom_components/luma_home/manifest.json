@@ -6,10 +6,11 @@
   "integration_type": "device",
   "iot_class": "local_push",
   "dependencies": [
-    "http",
-    "websocket_api",
     "assist_pipeline",
-    "assist_satellite"
+    "assist_satellite",
+    "frontend",
+    "http",
+    "websocket_api"
   ],
   "requirements": [],
   "codeowners": [

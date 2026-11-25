@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """Start PCM capture before Node/HA connects. Audio stays in a bounded RAM queue."""
 from __future__ import print_function
-import errno,json,math,os,select,signal,socket,struct,subprocess,time
+import errno,json,os,select,socket,struct,subprocess,time
 ROOT='/var/lib/webosbrew/lumahome'
 PATH=ROOT+'/voice-buffer.sock'
 def configuration():

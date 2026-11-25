@@ -7,7 +7,7 @@ const path=require('path'),assert=require('assert');
   const page=await browser.newPage(),errors=[];
   page.on('pageerror',e=>errors.push(e.message));
   await page.setContent('<body></body>');
-  await page.addScriptTag({path:path.resolve(__dirname,'../ha/luma-home-card.js')});
+  await page.addScriptTag({path:path.resolve(__dirname,'../custom_components/luma_home/frontend/luma-home-card.js')});
   await page.evaluate(()=>{
    const states={};
    for(let i=0;i<600;i++)states['switch.test_'+i]={state:'off',attributes:{friendly_name:'Test switch '+i}};

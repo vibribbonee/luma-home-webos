@@ -1,18 +1,26 @@
 """Luma Home: native integration, configuration and TV overlay actions."""
 from __future__ import annotations
+from pathlib import Path
 import probatio as vol
 from homeassistant.core import HomeAssistant,ServiceCall
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv,device_registry as dr
 from homeassistant.helpers import entity_registry as er
+from homeassistant.components.frontend import add_extra_js_url
 from homeassistant.components.http import StaticPathConfig
+from homeassistant.loader import async_get_integration
 from .const import DOMAIN,PLATFORMS
 from .coordinator import LumaTV, TV_RUNTIME_SETTINGS, tv_catalog_store
+CARD_URL='/luma_home/luma-home-card.js'
 async def async_setup(hass:HomeAssistant,config):
     hass.data.setdefault(DOMAIN,{})
     from .websocket import async_register
     async_register(hass)
-    await hass.http.async_register_static_paths([StaticPathConfig('/luma_home/luma-home-card.js',hass.config.path('custom_components',DOMAIN,'frontend','luma-home-card.js'),False)])
+    await hass.http.async_register_static_paths([StaticPathConfig(CARD_URL,str(Path(__file__).parent/'frontend'/'luma-home-card.js'),False)])
+    # Load the card on every dashboard so no manual resource is needed. The
+    # version query makes browsers fetch the new card after each update.
+    integration=await async_get_integration(hass,DOMAIN)
+    add_extra_js_url(hass,f'{CARD_URL}?v={integration.version}')
     common={vol.Optional('device_id'):cv.string,vol.Optional('entry_id'):cv.string,vol.Optional('tv_id'):cv.string}
     def resolve(data):
         entries=hass.data[DOMAIN]
