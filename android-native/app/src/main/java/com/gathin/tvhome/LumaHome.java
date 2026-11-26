@@ -103,6 +103,9 @@ final class LumaHome {
 
     List<AppAdapter.Entry> tiles() { return tiles; }
 
+    private static final long FOLLOW_INTERVAL_MS = 30_000;
+    private long lastFollow = -FOLLOW_INTERVAL_MS;
+
     void resume() {
         active = true;
         HomeKeyService.applyLumaHomeShortcut();
@@ -134,10 +137,45 @@ final class LumaHome {
                 subscribeConfig();
                 refresh();
             });
+            learnHomeAssistantId();
         }, reason -> {
             status = reason;
-            if (active && reason.equals("Home Assistant is offline.")) main.postDelayed(this::connect, 5000);
+            if (active && reason.equals("Home Assistant is offline.")) {
+                followHomeAssistant();
+                main.postDelayed(this::connect, 5000);
+            }
         });
+    }
+
+    /** Remember which Home Assistant this is, so a new IP can be followed later. */
+    private void learnHomeAssistantId() {
+        if (!preferences.optString("ha_uuid").isEmpty()) return;
+        String url = preferences.optString("url");
+        new LumaDiscovery(activity, hosts -> {
+            String uuid = LumaDiscovery.uuidAt(hosts, url);
+            if (active && !uuid.isEmpty() && url.equals(preferences.optString("url"))) update("ha_uuid", uuid);
+        }).start();
+    }
+
+    /**
+     * Home Assistant stopped answering: look for the same installation on the
+     * network and keep the token if it only changed address.
+     */
+    private void followHomeAssistant() {
+        long now = android.os.SystemClock.elapsedRealtime();
+        if (now - lastFollow < FOLLOW_INTERVAL_MS) return;
+        lastFollow = now;
+        String uuid = preferences.optString("ha_uuid"), url = preferences.optString("url");
+        if (uuid.isEmpty()) return;
+        new LumaDiscovery(activity, hosts -> {
+            String moved = LumaDiscovery.movedAddress(hosts, uuid, url);
+            if (!active || moved == null || !url.equals(preferences.optString("url"))) return;
+            if (update("url", moved)) {
+                status = "Home Assistant moved to " + moved;
+                main.removeCallbacksAndMessages(null);
+                connect();
+            }
+        }).start();
     }
 
     private void refresh() {
@@ -554,7 +592,10 @@ final class LumaHome {
             List<String> labels = new ArrayList<>();
             for (LumaDiscovery.Host host : hosts) labels.add(host.name + "  ·  " + host.address);
             LumaPanel.dialog(activity).setTitle("Choose Home Assistant")
-                    .setItems(labels.toArray(new String[0]), (dialog, row) -> saveAddress(hosts.get(row).address))
+                    .setItems(labels.toArray(new String[0]), (dialog, row) -> {
+                        saveAddress(hosts.get(row).address);
+                        if (!hosts.get(row).uuid.isEmpty()) update("ha_uuid", hosts.get(row).uuid);
+                    })
                     .setNeutralButton("Enter address", (dialog, button) -> editAddress())
                     .setNegativeButton("Cancel", null).show();
         }).start();
@@ -572,6 +613,7 @@ final class LumaHome {
                 socket.close();
                 main.removeCallbacksAndMessages(null);
                 put(preferences, "token", "");
+                preferences.remove("ha_uuid");
                 clearTv();
                 status = "Home Assistant disconnected";
             }

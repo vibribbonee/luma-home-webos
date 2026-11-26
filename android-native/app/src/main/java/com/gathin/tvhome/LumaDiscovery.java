@@ -34,7 +34,32 @@ final class LumaDiscovery implements NsdManager.DiscoveryListener {
     static final class Host {
         final String name;
         final String address;
-        Host(String name, String address) { this.name = name; this.address = address; }
+        /** Home Assistant's installation UUID; stable across address changes. */
+        final String uuid;
+        Host(String name, String address) { this(name, address, ""); }
+        Host(String name, String address, String uuid) {
+            this.name = name; this.address = address; this.uuid = uuid == null ? "" : uuid;
+        }
+    }
+
+    /**
+     * The address the same Home Assistant now uses, or null if it has not moved
+     * or was not found. Matching on the UUID never switches to a different HA.
+     */
+    static String movedAddress(List<Host> hosts, String savedUuid, String currentUrl) {
+        if (savedUuid == null || savedUuid.isEmpty()) return null;
+        for (Host host : hosts) {
+            if (savedUuid.equalsIgnoreCase(host.uuid)) {
+                return host.address.equals(currentUrl) ? null : host.address;
+            }
+        }
+        return null;
+    }
+
+    /** The UUID of the discovered Home Assistant at this address, or "". */
+    static String uuidAt(List<Host> hosts, String url) {
+        for (Host host : hosts) if (host.address.equals(url)) return host.uuid;
+        return "";
     }
 
     LumaDiscovery(Context context, Consumer<List<Host>> result) {
@@ -85,7 +110,9 @@ final class LumaDiscovery implements NsdManager.DiscoveryListener {
             String url = advertised == null ? "" : new String(advertised, StandardCharsets.UTF_8).trim();
             String address = preferredAddress(url, info.getHost(), info.getPort());
             String service = info.getServiceName();
-            if (address != null) hosts.putIfAbsent(service, new Host(service, address));
+            byte[] uuid = info.getAttributes().get("uuid");
+            String id = uuid == null ? "" : new String(uuid, StandardCharsets.UTF_8).trim();
+            if (address != null) hosts.putIfAbsent(service, new Host(service, address, id));
         }
         resolveNext();
     }
