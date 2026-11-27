@@ -91,7 +91,7 @@ final class LumaUpdate {
                 Release release = newest(new JSONArray(get(RELEASES_URL)), installed);
                 prefs.edit().putLong("checked", System.currentTimeMillis()).apply();
                 main.post(() -> { busy = false; available = release; found.accept(release); });
-            } catch (IOException | JSONException error) {
+            } catch (IOException | JSONException | RuntimeException error) {
                 main.post(() -> { busy = false; failed.accept("Could not check for updates."); });
             }
         });
@@ -121,7 +121,7 @@ final class LumaUpdate {
                 }
                 commit(apk);
                 main.post(() -> { busy = false; status.accept("Confirm the update on screen."); });
-            } catch (IOException error) {
+            } catch (IOException | RuntimeException error) {
                 apk.delete();
                 main.post(() -> { busy = false; status.accept("The update could not be downloaded."); });
             }
@@ -265,8 +265,7 @@ final class LumaUpdate {
     }
 
     private static String get(String address) throws IOException {
-        HttpURLConnection connection = open(address);
-        connection.setRequestProperty("Accept", "application/vnd.github+json");
+        HttpURLConnection connection = open(address, "application/vnd.github+json");
         try (InputStream in = connection.getInputStream()) {
             return new String(readAll(in, 4L * 1024 * 1024), StandardCharsets.UTF_8);
         } finally {
@@ -278,7 +277,7 @@ final class LumaUpdate {
         if (!address.startsWith("https://github.com/") && !address.startsWith("https://objects.githubusercontent.com/")) {
             throw new IOException("Unexpected download address");
         }
-        HttpURLConnection connection = open(address);
+        HttpURLConnection connection = open(address, null);
         try (InputStream in = connection.getInputStream(); OutputStream out = new FileOutputStream(target)) {
             byte[] buffer = new byte[64 * 1024];
             long total = 0;
@@ -292,12 +291,14 @@ final class LumaUpdate {
         }
     }
 
-    private static HttpURLConnection open(String address) throws IOException {
+    /** Opens a request; every header is set before the connection is made. */
+    private static HttpURLConnection open(String address, String accept) throws IOException {
         HttpURLConnection connection = (HttpURLConnection) new URL(address).openConnection();
         connection.setConnectTimeout(10_000);
         connection.setReadTimeout(30_000);
         connection.setInstanceFollowRedirects(true);
         connection.setRequestProperty("User-Agent", "LumaX-updater");
+        if (accept != null) connection.setRequestProperty("Accept", accept);
         int code = connection.getResponseCode();
         if (code != HttpURLConnection.HTTP_OK) throw new IOException("HTTP " + code);
         return connection;
