@@ -75,6 +75,7 @@ final class LumaHome {
         cache = activity.getSharedPreferences("luma-native", 0);
         artwork = new LumaTileArt(activity, cache, this::reloadArtwork);
         media = new LumaMedia(activity);
+        update = new LumaUpdate(activity);
         roomControls = new LumaRoomControls(activity, socket, false, state -> media.showCamera(
                 preferences.optString("url"), preferences.optString("token"),
                 json("camera", state.optString("entity_id"), "title", entityLabel(state))));
@@ -104,10 +105,14 @@ final class LumaHome {
     List<AppAdapter.Entry> tiles() { return tiles; }
 
     private static final long FOLLOW_INTERVAL_MS = 30_000;
+    private final LumaUpdate update;
     private long lastFollow = -FOLLOW_INTERVAL_MS;
 
     void resume() {
         active = true;
+        update.checkDaily(release -> {
+            if (active && release != null) message("LumaX " + release.version + " is available in Settings → Software update.");
+        });
         HomeKeyService.applyLumaHomeShortcut();
         if (!preferences.optString("token").isEmpty()) connect();
     }
@@ -427,6 +432,9 @@ final class LumaHome {
         if (linkedToLg) rows.add("LG Input button · " + (sharedSettings().optBoolean("input_button_cycle") ? "Switch HDMI 1 / HDMI 2" : "LG input picker"));
         int androidHomeRow = rows.size();
         rows.add("Android Home app");
+        int updateRow = rows.size();
+        LumaUpdate.Release pending = update.available();
+        rows.add(pending == null ? "Software update · Check now" : "Software update · Install " + pending.version);
         showSidePanel(LumaPanel.dialog(activity).setTitle("Settings").setItems(rows.toArray(new String[0]), (dialog, row) -> {
             if (row == speakerRow) { chooseReplySpeaker(); return; }
             if (linkedToLg && row == speakerPolicyRow) {
@@ -435,6 +443,7 @@ final class LumaHome {
                 return;
             }
             if (linkedToLg && row == cycleRow) { saveLgSetting("input_button_cycle", !sharedSettings().optBoolean("input_button_cycle"), this::showSettings); return; }
+            if (row == updateRow) { softwareUpdate(); return; }
             if (row == androidHomeRow) {
                 openAndroidDefaults(Settings.ACTION_HOME_SETTINGS);
                 return;
@@ -582,6 +591,24 @@ final class LumaHome {
                     else message(activity.getString(R.string.library_save_failed));
                     showHiddenApps();
                 }).setNegativeButton("Back", (dialog, selected) -> showSettings()));
+    }
+
+    private void softwareUpdate() {
+        LumaUpdate.Release pending = update.available();
+        if (pending != null) { confirmUpdate(pending); return; }
+        message("Checking for updates…");
+        update.check(release -> {
+            if (!active) return;
+            if (release == null) message("LumaX is up to date.");
+            else confirmUpdate(release);
+        }, this::message);
+    }
+
+    private void confirmUpdate(LumaUpdate.Release release) {
+        LumaPanel.dialog(activity).setTitle("Update LumaX to " + release.version + "?")
+                .setMessage("Your settings and Home Assistant connection are kept. Android asks you to confirm the install.")
+                .setPositiveButton("Update", (dialog, button) -> update.install(release, this::message))
+                .setNegativeButton("Later", null).show();
     }
 
     private void findHomeAssistant() {

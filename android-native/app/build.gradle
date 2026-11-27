@@ -13,8 +13,22 @@ android {
         applicationId providers.gradleProperty('launcherApplicationId').getOrElse('dev.lumax.nativepreview')
         minSdk 26
         targetSdk 34
-        versionCode 46
-        versionName '0.2.32-native-preview'
+        versionCode 47
+        versionName '0.2.33-native-preview'
+    }
+
+    signingConfigs {
+        // The key every released LumaX APK is signed with, kept outside the repository
+        // (see docs in README). Android installs an update only over the same key.
+        release {
+            def store = providers.gradleProperty('LUMAX_RELEASE_STORE_FILE').getOrNull()
+            if (store != null) {
+                storeFile file(store)
+                storePassword providers.gradleProperty('LUMAX_RELEASE_STORE_PASSWORD').get()
+                keyAlias providers.gradleProperty('LUMAX_RELEASE_KEY_ALIAS').get()
+                keyPassword providers.gradleProperty('LUMAX_RELEASE_KEY_PASSWORD').get()
+            }
+        }
     }
 
     buildTypes {
@@ -23,8 +37,9 @@ android {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            // Development preview: retain the debug signing identity so preview updates preserve settings.
-            signingConfig signingConfigs.debug
+            // Without the release key (e.g. another developer's machine), fall back to the
+            // debug key; such builds cannot update an installed release.
+            signingConfig providers.gradleProperty('LUMAX_RELEASE_STORE_FILE').isPresent() ? signingConfigs.release : signingConfigs.debug
         }
     }
 
@@ -48,4 +63,6 @@ dependencies {
     implementation 'androidx.dynamicanimation:dynamicanimation:1.0.0'
     // Test only (never in the APK): plain JVM tests for the module card validators, src/test.
     testImplementation 'junit:junit:4.13.2'
+    // Android's unit-test stubs leave org.json unimplemented; use the real library in tests.
+    testImplementation 'org.json:json:20240303'
 }

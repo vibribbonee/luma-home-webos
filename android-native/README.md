@@ -27,4 +27,6 @@ CleanYourTV is used under the repository’s MIT license. The Steam mark comes f
 
 ## Build
 
-Use JDK 17 or later with Android SDK platform 34 and build-tools 34.0.0. Set `ANDROID_HOME` to your SDK, then run `./gradlew testReleaseUnitTest lintRelease assembleRelease` from this folder. The APK is written to `app/build/outputs/apk/release/app-release.apk`. Published previews use a persistent signing key so updates preserve app settings.
+Use JDK 17 or later with Android SDK platform 34 and build-tools 34.0.0. Set `ANDROID_HOME` to your SDK, then run `./gradlew testReleaseUnitTest lintRelease assembleRelease` from this folder. The APK is written to `app/build/outputs/apk/release/app-release.apk`. Published previews are signed with one persistent key, so updates keep app settings. To sign a release, set `LUMAX_RELEASE_STORE_FILE`, `LUMAX_RELEASE_STORE_PASSWORD`, `LUMAX_RELEASE_KEY_ALIAS` and `LUMAX_RELEASE_KEY_PASSWORD` in `~/.gradle/gradle.properties`; without them the build uses the local debug key and cannot update an installed release.
+
+LumaX checks this repository's releases once a day. When a newer `lumax-native-preview_<version>.apk` is published, **Settings → Software update** offers it. The APK must be signed with the same key as the installed app; Android then asks you to confirm the install. The first time, allow LumaX to install apps when Android asks.
