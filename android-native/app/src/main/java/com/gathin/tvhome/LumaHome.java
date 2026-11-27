@@ -384,13 +384,39 @@ final class LumaHome {
                 art == null ? fallback : null, null, 0, () -> launch(app, port));
     }
 
+    /** Opens an LG tile. The TV is asked directly first, so HDMI and LG apps work without Home Assistant;
+     *  Home Assistant is the fallback when the TV can't be reached or hasn't been allowed yet. */
     private void launch(String app, int port) {
-        if (!socket.isReady()) { message("Home Assistant is offline."); return; }
+        LgDirect lg = LgDirect.get(activity);
+        if (!lg.enabled()) { launchViaHomeAssistant(app, port, null); return; }
+        LgDirect.Done done = (ok, error) -> { if (!ok) launchViaHomeAssistant(app, port, error); };
+        if (port != 0) lg.switchInput(port, done);
+        else lg.launchApp(app, done);
+    }
+
+    private void launchViaHomeAssistant(String app, int port, String directError) {
+        if (!socket.isReady()) { message(directError != null ? directError : "Home Assistant is offline."); return; }
         JSONObject service = json("entry_id", config.optString("entry_id"));
         if (port != 0) put(service, "input", port);
         else put(service, "app", app);
         socket.request("call_service", json("domain", "luma_home", "service", port == 0 ? "launch_app" : "select_input",
                 "service_data", service), result -> { if (result == null) message("The LG could not open this tile."); });
+    }
+
+    /** HDMI and LG app tiles go to the TV itself, so they keep working while Home Assistant is down. */
+    private void directControl() {
+        LgDirect lg = LgDirect.get(activity);
+        List<String> options = new ArrayList<>();
+        options.add(lg.enabled() ? "Turn off (use Home Assistant only)" : "Turn on");
+        if (lg.enabled()) options.add(lg.paired() ? "Pair again" : "Pair now (shows a prompt on the TV)");
+        LumaPanel.dialog(activity).setTitle("LG TV direct control: HDMI and LG apps without Home Assistant")
+                .setItems(options.toArray(new String[0]), (d, which) -> {
+                    if (which == 0) { lg.setEnabled(!lg.enabled()); showSettings(); return; }
+                    lg.forget();
+                    message("Allow LumaX on the TV when the prompt appears.");
+                    lg.request("system/getSystemInfo", new JSONObject(), (ok, error) ->
+                            message(ok ? "LumaX is paired with the LG TV." : error));
+                }).show();
     }
 
     private void reloadArtwork() { tileSignature = null; buildTiles(true); }
@@ -430,6 +456,9 @@ final class LumaHome {
         if (linkedToLg) rows.add("Use reply speaker · " + ("always".equals(sharedSettings().optString("voice_reply_output")) ? "Always" : "Only when TV is off"));
         int cycleRow = rows.size();
         if (linkedToLg) rows.add("LG Input button · " + (sharedSettings().optBoolean("input_button_cycle") ? "Switch HDMI 1 / HDMI 2" : "LG input picker"));
+        int directRow = rows.size();
+        LgDirect lg = LgDirect.get(activity);
+        if (linkedToLg) rows.add("LG TV direct control · " + (!lg.enabled() ? "Off" : lg.paired() ? "Paired (" + lg.host() + ")" : "Not paired yet"));
         int androidHomeRow = rows.size();
         rows.add("Android Home app");
         int updateRow = rows.size();
@@ -444,6 +473,7 @@ final class LumaHome {
             }
             if (linkedToLg && row == cycleRow) { saveLgSetting("input_button_cycle", !sharedSettings().optBoolean("input_button_cycle"), this::showSettings); return; }
             if (row == updateRow) { softwareUpdate(); return; }
+            if (linkedToLg && row == directRow) { directControl(); return; }
             if (row == androidHomeRow) {
                 openAndroidDefaults(Settings.ACTION_HOME_SETTINGS);
                 return;
