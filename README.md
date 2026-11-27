@@ -18,7 +18,7 @@ Put your apps, HDMI inputs, and Home Assistant controls on one screen on a roote
 
 ## Install
 
-1. On the TV, open **Homebrew Channel → Settings → Add repository** and enter the [Homebrew catalog URL](https://raw.githubusercontent.com/vibribbonee/arcguard/main/repo.json). Install **Luma Home** and **Luma Camera Overlay**, or download both [IPKs from Releases](https://github.com/vibribbonee/luma-home-webos/releases/latest).
+1. On the TV, open **Homebrew Channel → Settings → Add repository** and enter the [Homebrew catalog URL](https://raw.githubusercontent.com/vibribbonee/webos-homebrew-catalog/main/repo.json). Install **Luma Home** and **Luma Camera Overlay**, or download both [IPKs from Releases](https://github.com/vibribbonee/luma-home-webos/releases/latest).
 2. Add your TV to Home Assistant with the built-in **LG webOS TV** integration. Install Luma Home from Marketplace, restart Home Assistant, then add the **Luma Home** integration and select the TV.
 3. In Home Assistant, add a card with `type: custom:luma-home-settings`. With the TV on, open the card and select **Pair TV with this Home Assistant**.
 4. On the TV, open **Luma Home → Settings → System & voice** and enable **Home button shortcut**. Tap Home for the full launcher or hold it for the quick panel. You can swap the two actions in the same menu.
