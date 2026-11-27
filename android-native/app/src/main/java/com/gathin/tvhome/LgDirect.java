@@ -93,22 +93,103 @@ final class LgDirect {
     }
 
     void request(String uri, JSONObject payload, Done done) {
-        if (!enabled()) { reply(done, false, "Direct LG control is off."); return; }
+        query(uri, payload, (body, error) -> done.done(body != null, error));
+    }
+
+    /** Like request, but hands back the TV's reply (null with a message when it failed). */
+    void query(String uri, JSONObject payload, java.util.function.BiConsumer<JSONObject, String> done) {
+        if (!enabled()) { main.post(() -> done.accept(null, "Direct LG control is off.")); return; }
         worker.execute(() -> {
             String error = null;
             for (Target target : candidates()) {
                 try {
-                    send(target, uri, payload);
+                    JSONObject body = send(target, uri, payload);
                     remember(target);
-                    reply(done, true, null);
+                    JSONObject result = body == null ? new JSONObject() : body;
+                    main.post(() -> done.accept(result, null));
                     return;
                 } catch (Exception e) {
                     error = e.getMessage();
                     Log.d(TAG, "request via " + target.host + " failed: " + e);
                 }
             }
-            reply(done, false, error == null ? "The LG TV was not found on the network." : error);
+            String message = error == null ? "The LG TV was not found on the network." : error;
+            main.post(() -> done.accept(null, message));
         });
+    }
+
+    /** Asks the TV which app or input is in front (for example com.webos.app.hdmi2). */
+    void foregroundApp(Consumer<String> done) {
+        query("com.webos.applicationManager/getForegroundAppInfo", new JSONObject(),
+                (body, error) -> done.accept(body == null ? null : body.optString("appId")));
+    }
+
+    /** Same rule Home Assistant uses: forward remote keys only while the TV clearly shows something
+     *  other than the Streamer's own HDMI input or Luma's overlay. */
+    static boolean nativeTarget(String appId, int streamerPort) {
+        if (appId == null || appId.isEmpty()) return false;
+        if (appId.equals("com.spinoff.lumahome.overlay")) return false;
+        return !appId.equals("com.webos.app.hdmi" + streamerPort);
+    }
+
+    // ---- Remote keys ------------------------------------------------------------------------------
+
+    private final Object keyLock = new Object();
+    private WebSocket keySession, pointer;
+
+    /** Sends one remote button (UP, DOWN, LEFT, RIGHT, ENTER, BACK, HOME, EXIT) over a pointer socket that
+     *  stays open while keys keep coming and closes after a minute of quiet, so key presses stay fast. */
+    void sendButton(String name, Done done) {
+        if (!enabled() || !paired()) { reply(done, false, "Direct LG control isn't paired."); return; }
+        worker.execute(() -> {
+            try {
+                synchronized (keyLock) {
+                    if (pointer == null || !pointer.isOpen()) openPointer();
+                    pointer.sendText("type:button\nname:" + name + "\n\n");
+                }
+                main.removeCallbacks(closeKeys);
+                main.postDelayed(closeKeys, 60_000);
+                reply(done, true, null);
+            } catch (Exception e) {
+                closeKeysNow();
+                reply(done, false, e.getMessage());
+            }
+        });
+    }
+
+    private final Runnable closeKeys = () -> worker.execute(this::closeKeysNow);
+
+    private void closeKeysNow() {
+        synchronized (keyLock) {
+            if (pointer != null) pointer.disconnect();
+            if (keySession != null) keySession.disconnect();
+            pointer = keySession = null;
+        }
+    }
+
+    private void openPointer() throws Exception {
+        closeKeysNow();
+        boolean wss = !"ws".equals(prefs.getString("scheme", "wss"));
+        Target target = new Target(prefs.getString("uuid", ""), host());
+        LinkedBlockingQueue<JSONObject> inbox = new LinkedBlockingQueue<>();
+        WebSocket ws = socket(target, wss, inbox);
+        try {
+            ws.connect();
+            if (wss) checkPin(target, ws);
+            register(ws, inbox, true);
+            ws.sendText(json("id", "ptr", "type", "request",
+                    "uri", "ssap://com.webos.service.networkinput/getPointerInputSocket").toString());
+            JSONObject body = await(inbox, "ptr", REPLY_TIMEOUT_S).optJSONObject("payload");
+            String path = body == null ? "" : body.optString("socketPath");
+            if (path.isEmpty()) throw new IllegalStateException("The LG TV did not open its remote control channel.");
+            WebSocket keys = factory(path.startsWith("wss:")).createSocket(path);
+            keys.connect();
+            keySession = ws;
+            pointer = keys;
+        } catch (Exception e) {
+            ws.disconnect();
+            throw e;
+        }
     }
 
     // ---- Finding the TV -------------------------------------------------------------------------
@@ -180,14 +261,14 @@ final class LgDirect {
 
     // ---- Talking to the TV ----------------------------------------------------------------------
 
-    private void send(Target target, String uri, JSONObject payload) throws Exception {
+    private JSONObject send(Target target, String uri, JSONObject payload) throws Exception {
         boolean preferWss = !"ws".equals(prefs.getString("scheme", "wss"));
         Exception first = null;
         for (boolean wss : preferWss ? new boolean[]{true, false} : new boolean[]{false, true}) {
             try {
-                exchange(target, wss, uri, payload);
+                JSONObject body = exchange(target, wss, uri, payload);
                 prefs.edit().putString("scheme", wss ? "wss" : "ws").apply();
-                return;
+                return body;
             } catch (PairingRefused e) {
                 throw e;
             } catch (Exception e) {
@@ -201,20 +282,9 @@ final class LgDirect {
         PairingRefused(String message) { super(message); }
     }
 
-    private void exchange(Target target, boolean wss, String uri, JSONObject payload) throws Exception {
+    private JSONObject exchange(Target target, boolean wss, String uri, JSONObject payload) throws Exception {
         LinkedBlockingQueue<JSONObject> inbox = new LinkedBlockingQueue<>();
-        WebSocketFactory factory = new WebSocketFactory().setConnectionTimeout(3000);
-        if (wss) {
-            SSLContext ssl = SSLContext.getInstance("TLS");
-            ssl.init(null, new TrustManager[]{TRUST_ANY}, null);   // pinned below, after the handshake
-            factory.setSSLContext(ssl).setVerifyHostname(false);
-        }
-        WebSocket ws = factory.createSocket((wss ? "wss://" : "ws://") + target.host + (wss ? ":3001" : ":3000"));
-        ws.addListener(new WebSocketAdapter() {
-            @Override public void onTextMessage(WebSocket socket, String text) {
-                try { inbox.add(new JSONObject(text)); } catch (JSONException ignored) { }
-            }
-        });
+        WebSocket ws = socket(target, wss, inbox);
         try {
             ws.connect();
             if (wss) checkPin(target, ws);
@@ -226,9 +296,30 @@ final class LgDirect {
                 String why = reply.optString("error", body == null ? "" : body.optString("errorText"));
                 throw new IllegalStateException(why.isEmpty() ? "The LG TV did not accept the command." : "The LG TV said: " + why);
             }
+            return body;
         } finally {
             ws.disconnect();
         }
+    }
+
+    private static WebSocketFactory factory(boolean wss) throws Exception {
+        WebSocketFactory factory = new WebSocketFactory().setConnectionTimeout(3000);
+        if (wss) {
+            SSLContext ssl = SSLContext.getInstance("TLS");
+            ssl.init(null, new TrustManager[]{TRUST_ANY}, null);   // the main socket is pinned after the handshake
+            factory.setSSLContext(ssl).setVerifyHostname(false);
+        }
+        return factory;
+    }
+
+    private static WebSocket socket(Target target, boolean wss, LinkedBlockingQueue<JSONObject> inbox) throws Exception {
+        WebSocket ws = factory(wss).createSocket((wss ? "wss://" : "ws://") + target.host + (wss ? ":3001" : ":3000"));
+        ws.addListener(new WebSocketAdapter() {
+            @Override public void onTextMessage(WebSocket socket, String text) {
+                try { inbox.add(new JSONObject(text)); } catch (JSONException ignored) { }
+            }
+        });
+        return ws;
     }
 
     private void register(WebSocket ws, LinkedBlockingQueue<JSONObject> inbox, boolean signed) throws Exception {

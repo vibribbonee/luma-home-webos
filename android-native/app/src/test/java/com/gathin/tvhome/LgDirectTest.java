@@ -64,4 +64,13 @@ public class LgDirectTest {
         LgDirect.registration(base, "k", false);
         assertEquals(before, base.toString());
     }
+
+    @Test public void forwardsKeysOnlyWhenTheTvShowsSomethingElse() {
+        assertTrue(LgDirect.nativeTarget("netflix", 1));
+        assertTrue(LgDirect.nativeTarget("com.webos.app.hdmi2", 1));
+        assertFalse(LgDirect.nativeTarget("com.webos.app.hdmi1", 1));
+        assertFalse(LgDirect.nativeTarget("com.spinoff.lumahome.overlay", 1));
+        assertFalse(LgDirect.nativeTarget("", 1));
+        assertFalse(LgDirect.nativeTarget(null, 2));
+    }
 }

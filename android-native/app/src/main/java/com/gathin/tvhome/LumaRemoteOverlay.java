@@ -98,6 +98,21 @@ final class LumaRemoteOverlay {
         connect();
     }
 
+    /** While Home Assistant is unreachable, ask the TV itself what it shows, so Google remote keys
+     *  still reach LG apps and inputs. Home Assistant's own updates take over again once it is back. */
+    private final Runnable directTarget = new Runnable() {
+        @Override public void run() {
+            main.removeCallbacks(this);
+            LgDirect lg = LgDirect.get(context);
+            if (socket.isReady() || !lg.enabled() || !lg.paired() || !options.getBoolean(LG_REMOTE_NAVIGATION, false)) return;
+            int streamerPort = shared.optBoolean("lumax_enabled") ? shared.optInt("lumax_input", port) : port;
+            lg.foregroundApp(app -> {
+                if (!socket.isReady()) webosNativeTarget = LgDirect.nativeTarget(app, streamerPort);
+                main.postDelayed(this, 4000);
+            });
+        }
+    };
+
     private void connect() {
         main.removeCallbacks(reconnect);
         main.removeCallbacks(verifyRegistration);
@@ -148,6 +163,7 @@ final class LumaRemoteOverlay {
             webosQuickActive = false;
             webosHoldConfirm = false;
             webosNativeTarget = false;
+            main.post(directTarget);
             controls.close();
             media.close();
             media.closeNotification();
@@ -262,7 +278,11 @@ final class LumaRemoteOverlay {
         InputDevice device = event.getDevice();
         boolean nativeNavigation = !webosQuickActive && webosNativeTarget
                 && options.getBoolean(LG_REMOTE_NAVIGATION, false) && isRemote(device);
-        if (event.getAction() != KeyEvent.ACTION_DOWN || !paired() || !socket.isReady()
+        // Native LG navigation reaches the TV directly, so it keeps working while Home Assistant is down;
+        // the LG quick panel lives in the TV's Luma app and still needs Home Assistant.
+        boolean reachable = webosQuickActive ? socket.isReady()
+                : socket.isReady() || LgDirect.get(context).paired();
+        if (event.getAction() != KeyEvent.ACTION_DOWN || !paired() || !reachable
                 || !(webosQuickActive || nativeNavigation)) {
             return relayedKeys.contains(code);
         }
@@ -302,7 +322,23 @@ final class LumaRemoteOverlay {
         return Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ? device.isExternal() : device.getVendorId() != 0;
     }
 
+    private static final java.util.Map<String, String> LG_BUTTONS = java.util.Map.of(
+            "left", "LEFT", "right", "RIGHT", "up", "UP", "down", "DOWN", "ok", "ENTER", "back", "BACK");
+
     private void sendKey(String key, boolean nativeNavigation) {
+        String button = LG_BUTTONS.get(key);
+        LgDirect lg = LgDirect.get(context);
+        if (nativeNavigation && button != null && lg.enabled() && lg.paired()) {
+            lg.sendButton(button, (ok, error) -> {
+                Log.d(TAG, "LG direct " + key + (ok ? " delivered" : " failed: " + error));
+                if (!ok && socket.isReady()) sendKeyViaHomeAssistant(key, true);
+            });
+            return;
+        }
+        sendKeyViaHomeAssistant(key, nativeNavigation);
+    }
+
+    private void sendKeyViaHomeAssistant(String key, boolean nativeNavigation) {
         JSONObject request = json("tv_id", tv, "key", key);
         if (nativeNavigation) LumaSocket.put(request, "native", true);
         socket.request("luma_home/quick/key", request, result -> {
